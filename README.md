@@ -32,6 +32,8 @@ docker compose up --build -d
 docker compose ps
 ```
 
+Stop and clean up the demo container with `docker compose down`. Add `--volumes` only when you intentionally want to remove the local demo data.
+
 Open <http://127.0.0.1:8080>. Health is available at <http://127.0.0.1:8080/health>.
 
 The named volume preserves ledgers, transactions, and uploaded receipts across container recreation. The container runs as the unprivileged `app` user and does not require an external AI token in demo mode.
@@ -39,6 +41,8 @@ The named volume preserves ledgers, transactions, and uploaded receipts across c
 ## Environment variables
 
 Copy `.env.example` when integrating a real provider. The demo parser and deterministic insight engine work without credentials.
+
+To connect a real provider later, implement the `FinanceAgent` adapter in `app/server.py` and inject `AI_PROVIDER`, `AI_API_URL`, and `AI_API_TOKEN` at runtime. The browser never receives the token.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |

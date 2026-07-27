@@ -12,6 +12,11 @@ class FinanceServerTests(unittest.TestCase):
         self.assertEqual(parsed["transactions"][0]["type"], "expense")
         self.assertEqual(parsed["transactions"][0]["category"], "交通")
 
+    def test_demo_agent_keeps_provider_boundary(self):
+        parsed = server.FINANCE_AGENT.parse("停车112元")
+        self.assertTrue(server.FINANCE_AGENT.provider)
+        self.assertEqual(parsed["transactions"][0]["category"], "交通")
+
     def test_parse_multiple_records_and_ledger(self):
         parsed = server.parse_command("创建2026账本，把停车费112元记录进去，再把4月份销冠奖金500元放进去")
         self.assertEqual(parsed["ledger"]["name"], "2026 账本")

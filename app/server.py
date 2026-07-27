@@ -8,6 +8,7 @@ import math
 import mimetypes
 import os
 import re
+import signal
 import threading
 import uuid
 from datetime import date, datetime
@@ -281,6 +282,21 @@ def insights_answer(state: dict, question: str) -> dict:
     return {"answer": "我可以解释本月支出、分类变化、现金流和可执行建议。试试问我：为什么这个月花这么多？", "reasons": [], "suggestion": "", "data": data}
 
 
+class FinanceAgent:
+    """Stable provider boundary; the MVP uses deterministic local behavior."""
+
+    provider = os.getenv("AI_PROVIDER", "demo")
+
+    def parse(self, text: str) -> dict:
+        return parse_command(text)
+
+    def answer(self, state: dict, question: str) -> dict:
+        return insights_answer(state, question)
+
+
+FINANCE_AGENT = FinanceAgent()
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "AIFinanceOS/1.0"
 
@@ -317,7 +333,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path == "/api/insights":
             question = parse_qs(parsed.query).get("question", [""])[0]
-            self._json(HTTPStatus.OK, insights_answer(_read_state(), question))
+            self._json(HTTPStatus.OK, FINANCE_AGENT.answer(_read_state(), question))
             return
         if path.startswith("/uploads/"):
             self._serve_upload(path.removeprefix("/uploads/"))
@@ -329,7 +345,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             payload = self._read_json()
             if path == "/api/parse":
-                self._json(HTTPStatus.OK, parse_command(str(payload.get("text", ""))))
+                self._json(HTTPStatus.OK, FINANCE_AGENT.parse(str(payload.get("text", ""))))
                 return
             if path == "/api/transactions/batch":
                 added = add_transactions({"transactions": payload.get("transactions", [])}, payload.get("ledgerName"))
@@ -418,6 +434,12 @@ class Handler(BaseHTTPRequestHandler):
 def main() -> None:
     _ensure_data()
     server = ThreadingHTTPServer((HOST, PORT), Handler)
+
+    def stop_server(_signum, _frame) -> None:
+        threading.Thread(target=server.shutdown, daemon=True).start()
+
+    signal.signal(signal.SIGTERM, stop_server)
+    signal.signal(signal.SIGINT, stop_server)
     print(f"AI Personal Finance OS listening on {HOST}:{PORT}")
     try:
         server.serve_forever()

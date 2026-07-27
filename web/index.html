@@ -127,7 +127,7 @@
 
         <section id="receipts-view" class="view">
           <div class="view-heading"><div><p class="eyebrow">图片凭证</p><h2>让每一笔账都有凭证。</h2><p class="subcopy">上传小票、发票或支付截图，AI 会提取商户、金额和分类。</p></div></div>
-          <div class="receipts-layout"><article class="surface upload-card"><div class="upload-icon">↑</div><h3>拖入一张凭证</h3><p>支持 PNG、JPG、WEBP，单张不超过 8MB。</p><label class="upload-button" for="receipt-file">选择图片<input id="receipt-file" type="file" accept="image/*" hidden /></label><div id="upload-status" class="upload-status">图片会保存到当前容器的数据卷中。</div></article><article class="surface receipt-results"><div class="surface-heading"><div><p class="eyebrow">历史财务档案</p><h3>原始凭证与交易记录</h3></div><span class="muted-label">可追溯</span></div><div id="receipt-list" class="receipt-list"></div></article></div>
+          <div class="receipts-layout"><article class="surface upload-card"><div class="upload-icon">↑</div><h3>拖入一张凭证</h3><p>支持 PNG、JPG、WEBP，单张不超过 8MB。</p><label class="upload-button" for="receipt-file">选择图片<input id="receipt-file" type="file" accept="image/*" hidden /></label><div id="upload-progress" class="upload-progress hidden" aria-label="上传进度"><span id="upload-progress-bar"></span></div><div id="upload-status" class="upload-status">图片会保存到当前容器的数据卷中。</div></article><article class="surface receipt-results"><div class="surface-heading"><div><p class="eyebrow">历史财务档案</p><h3>原始凭证与交易记录</h3></div><span class="muted-label">可追溯</span></div><div id="receipt-list" class="receipt-list"></div></article></div>
         </section>
       </main>
     </div>
