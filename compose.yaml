@@ -1,0 +1,26 @@
+services:
+  ai-finance-os:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ai-finance-os:local
+    container_name: ai-finance-os
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+      DATA_DIR: /app/data
+      AI_PROVIDER: demo
+      LOG_LEVEL: INFO
+    volumes:
+      - ai-finance-os-data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=2).read()"]
+      interval: 10s
+      timeout: 3s
+      start_period: 5s
+      retries: 5
+
+volumes:
+  ai-finance-os-data:
