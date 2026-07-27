@@ -211,6 +211,48 @@ def update_transaction(transaction_id: str, updates: dict) -> dict | None:
         return transaction
 
 
+def update_receipt(receipt_id: str, updates: dict) -> dict | None:
+    """Update fields extracted from a receipt before it is linked to a transaction."""
+    allowed = {"merchant", "amount", "category", "date"}
+    unknown = set(updates) - allowed
+    if unknown:
+        raise ValueError(f"unsupported fields: {', '.join(sorted(unknown))}")
+    normalized: dict = {}
+    if "merchant" in updates:
+        merchant = str(updates["merchant"]).strip()
+        if not merchant:
+            raise ValueError("merchant cannot be empty")
+        normalized["merchant"] = merchant[:80]
+    if "amount" in updates:
+        amount = float(updates["amount"])
+        if not math.isfinite(amount) or amount <= 0:
+            raise ValueError("amount must be a positive number")
+        normalized["amount"] = round(amount, 2)
+    if "category" in updates:
+        category = str(updates["category"]).strip()
+        if not category:
+            raise ValueError("category cannot be empty")
+        normalized["category"] = category[:24]
+    if "date" in updates:
+        receipt_date = str(updates["date"]).strip()
+        try:
+            datetime.strptime(receipt_date, "%Y-%m-%d")
+        except ValueError as exc:
+            raise ValueError("date must use YYYY-MM-DD") from exc
+        normalized["date"] = receipt_date
+    if not normalized:
+        raise ValueError("no editable fields supplied")
+
+    with STATE_LOCK:
+        state = _read_state()
+        receipt = next((item for item in state["receipts"] if item["id"] == receipt_id), None)
+        if receipt is None:
+            return None
+        receipt.update(normalized)
+        _write_state(state)
+        return receipt
+
+
 def delete_transaction(transaction_id: str) -> bool:
     with STATE_LOCK:
         state = _read_state()
@@ -244,7 +286,7 @@ def create_receipt(payload: dict) -> dict:
 def dashboard(state: dict) -> dict:
     transactions = state["transactions"]
     if not transactions:
-        return {"month": date.today().strftime("%Y-%m"), "spend": 0, "income": 0, "net": 0, "categories": {}, "trend": [], "recent": [], "insight": "还没有交易，先用一句话记下第一笔账。"}
+        return {"month": date.today().strftime("%Y-%m"), "spend": 0, "income": 0, "net": 0, "categories": {}, "trend": [], "recent": [], "priorAverage": 0, "increase": 0, "increasePercent": 0, "insight": "还没有交易，先用一句话记下第一笔账。"}
     focus_month = max(tx["date"][:7] for tx in transactions)
     month_txs = [tx for tx in transactions if tx["date"].startswith(focus_month)]
     spend = sum(tx["amount"] for tx in month_txs if tx["type"] == "expense")
@@ -270,7 +312,7 @@ def dashboard(state: dict) -> dict:
         insight = f"本月{top_category}消费占比最高；整体支出比过去平均增加约 {percent}%，主要来自{top_category}。"
     else:
         insight = f"本月{top_category}是主要支出类别，继续保持对高频消费的关注。"
-    return {"month": focus_month, "spend": round(spend, 2), "income": round(income, 2), "net": round(income - spend, 2), "categories": categories, "trend": trend, "recent": sorted(transactions, key=lambda tx: tx["date"], reverse=True)[:8], "insight": insight}
+    return {"month": focus_month, "spend": round(spend, 2), "income": round(income, 2), "net": round(income - spend, 2), "categories": categories, "trend": trend, "recent": sorted(transactions, key=lambda tx: tx["date"], reverse=True)[:8], "priorAverage": round(average, 2), "increase": round(increase, 2), "increasePercent": round(increase / average * 100) if average else 0, "insight": insight}
 
 
 def insights_answer(state: dict, question: str) -> dict:
@@ -278,7 +320,8 @@ def insights_answer(state: dict, question: str) -> dict:
     if "为什" in question or "花" in question or "支出" in question:
         categories = sorted(data["categories"].items(), key=lambda item: item[1], reverse=True)
         reasons = [{"category": category, "amount": amount} for category, amount in categories[:3]]
-        return {"answer": f"相比过去几个月，本月支出为 {_money(data['spend'])}。主要原因来自 {reasons[0]['category'] if reasons else '暂无分类'}，我把变化拆解如下。", "reasons": reasons, "suggestion": "优先减少高频、非计划支出，同时保留必要的生活与体验预算。", "data": data}
+        comparison = f"比过去平均增加 {_money(data['increase'])}（约 {data['increasePercent']}%）" if data["increase"] > 0 else "没有高于过去平均"
+        return {"answer": f"本月支出为 {_money(data['spend'])}，{comparison}。主要原因来自 {reasons[0]['category'] if reasons else '暂无分类'}，我把变化拆解如下。", "reasons": reasons, "suggestion": "优先减少高频、非计划支出，同时保留必要的生活与体验预算。", "data": data}
     return {"answer": "我可以解释本月支出、分类变化、现金流和可执行建议。试试问我：为什么这个月花这么多？", "reasons": [], "suggestion": "", "data": data}
 
 
@@ -373,6 +416,23 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_PATCH(self) -> None:
         path = unquote(urlparse(self.path).path)
+        if path.startswith("/api/receipts/"):
+            receipt_id = path.removeprefix("/api/receipts/")
+            if not receipt_id or "/" in receipt_id:
+                self._json(HTTPStatus.NOT_FOUND, {"error": "route not found"})
+                return
+            try:
+                updated = update_receipt(receipt_id, self._read_json())
+                if updated is None:
+                    self._json(HTTPStatus.NOT_FOUND, {"error": "receipt not found"})
+                    return
+                self._json(HTTPStatus.OK, {"receipt": updated})
+            except (ValueError, json.JSONDecodeError) as exc:
+                self._json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
+            except Exception as exc:
+                print(f"request failed: {type(exc).__name__}")
+                self._json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "internal server error"})
+            return
         transaction_id = path.removeprefix("/api/transactions/")
         if not transaction_id or "/" in transaction_id or transaction_id == "batch":
             self._json(HTTPStatus.NOT_FOUND, {"error": "route not found"})

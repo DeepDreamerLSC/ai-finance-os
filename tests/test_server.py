@@ -39,8 +39,15 @@ class FinanceServerTests(unittest.TestCase):
         self.assertEqual(data["spend"], 220)
         self.assertEqual(data["income"], 500)
         self.assertEqual(data["categories"]["餐饮"], 220)
+        self.assertEqual(data["increase"], 120)
         answer = server.insights_answer(state, "为什么这个月花这么多？")
         self.assertEqual(answer["reasons"][0]["category"], "餐饮")
+        self.assertIn("增加", answer["answer"])
+
+    def test_empty_dashboard_can_answer_without_transactions(self):
+        answer = server.insights_answer({"ledgers": [], "transactions": [], "receipts": []}, "为什么这个月花这么多？")
+        self.assertEqual(answer["data"]["increase"], 0)
+        self.assertIn("没有高于过去平均", answer["answer"])
 
     def test_json_persistence_and_receipt_creation(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -58,6 +65,9 @@ class FinanceServerTests(unittest.TestCase):
                 self.assertTrue((server.UPLOADS_DIR / Path(receipt["url"]).name).exists())
                 self.assertGreaterEqual(len(state["transactions"]), 10)
                 self.assertEqual(state["receipts"][-1]["amount"], 268)
+                updated = server.update_receipt(receipt["id"], {"merchant": "盒马鲜生", "amount": 269, "category": "购物", "date": "2026-07-27"})
+                self.assertEqual(updated["amount"], 269)
+                self.assertEqual(updated["merchant"], "盒马鲜生")
             finally:
                 server.DATA_DIR, server.UPLOADS_DIR, server.STATE_FILE = previous
 

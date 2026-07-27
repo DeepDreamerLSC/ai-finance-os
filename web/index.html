@@ -19,7 +19,7 @@
         </div>
         <div class="ledger-select">
           <span class="eyebrow">当前账本</span>
-          <button id="ledger-name-button" class="select-button">2026 账本 <span>⌄</span></button>
+          <select id="ledger-name-button" class="select-button" aria-label="切换当前账本"></select>
         </div>
         <nav class="primary-nav" aria-label="主导航">
           <button class="nav-item active" data-view="dashboard"><span class="nav-dot cyan"></span>总览</button>
@@ -114,6 +114,7 @@
             </article>
             <aside class="chat-aside">
               <div class="aside-card"><p class="eyebrow">可执行指令</p><h3>从自然语言到结构化记录</h3><div class="flow-stack"><span>用户表达</span><i>↓</i><span>AI 理解</span><i>↓</i><span>自动整理</span><i>↓</i><span>可确认账单</span></div></div>
+              <div id="chat-dashboard-summary" class="aside-card"></div>
               <div id="parse-preview" class="aside-card preview-card hidden"></div>
             </aside>
           </div>
@@ -127,9 +128,16 @@
 
         <section id="receipts-view" class="view">
           <div class="view-heading"><div><p class="eyebrow">图片凭证</p><h2>让每一笔账都有凭证。</h2><p class="subcopy">上传小票、发票或支付截图，AI 会提取商户、金额和分类。</p></div></div>
-          <div class="receipts-layout"><article class="surface upload-card"><div class="upload-icon">↑</div><h3>拖入一张凭证</h3><p>支持 PNG、JPG、WEBP，单张不超过 8MB。</p><label class="upload-button" for="receipt-file">选择图片<input id="receipt-file" type="file" accept="image/*" hidden /></label><div id="upload-progress" class="upload-progress hidden" aria-label="上传进度"><span id="upload-progress-bar"></span></div><div id="upload-status" class="upload-status">图片会保存到当前容器的数据卷中。</div></article><article class="surface receipt-results"><div class="surface-heading"><div><p class="eyebrow">历史财务档案</p><h3>原始凭证与交易记录</h3></div><span class="muted-label">可追溯</span></div><div id="receipt-list" class="receipt-list"></div></article></div>
+          <div class="receipts-layout"><article id="receipt-dropzone" class="surface upload-card"><div class="upload-icon">↑</div><h3>拖入一张凭证</h3><p>支持 PNG、JPG、WEBP，单张不超过 8MB。</p><label class="upload-button" for="receipt-file">选择图片<input id="receipt-file" type="file" accept="image/*" hidden /></label><div id="upload-progress" class="upload-progress hidden" aria-label="上传进度"><span id="upload-progress-bar"></span></div><div id="upload-status" class="upload-status">图片会保存到当前容器的数据卷中。</div></article><article class="surface receipt-results"><div class="surface-heading"><div><p class="eyebrow">历史财务档案</p><h3>原始凭证与交易记录</h3></div><span class="muted-label">可追溯</span></div><div id="receipt-list" class="receipt-list"></div></article></div>
         </section>
       </main>
+    </div>
+    <div id="transaction-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="transaction-detail-title">
+      <div class="modal-backdrop" data-close-modal></div>
+      <section class="modal-card" aria-label="交易详情">
+        <button id="close-transaction-modal" class="modal-close" type="button" aria-label="关闭交易详情">×</button>
+        <div id="transaction-detail-content"><h3 id="transaction-detail-title">交易详情</h3></div>
+      </section>
     </div>
     <script src="/app.js" defer></script>
   </body>

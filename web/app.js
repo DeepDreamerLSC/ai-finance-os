@@ -1,4 +1,4 @@
-const appState = { data: null, filter: "all", query: "", pendingParse: null };
+const appState = { data: null, filter: "all", query: "", pendingParse: null, selectedLedgerId: null };
 const palette = ["#6d5ef7", "#26c6dd", "#2bc985", "#f2ae3f", "#ff6877"];
 
 const $ = (selector) => document.querySelector(selector);
@@ -51,6 +51,27 @@ function showView(viewName) {
   $(".sidebar").classList.remove("open");
 }
 
+function renderLedgerSelector() {
+  const selector = $("#ledger-name-button");
+  const ledgers = appState.data?.ledgers || [];
+  if (!ledgers.length) {
+    selector.innerHTML = "<option value=\"\">暂无账本</option>";
+    selector.disabled = true;
+    return;
+  }
+  if (!ledgers.some((ledger) => ledger.id === appState.selectedLedgerId)) appState.selectedLedgerId = ledgers[0].id;
+  selector.disabled = false;
+  selector.innerHTML = ledgers.map((ledger) => `<option value="${escapeHtml(ledger.id)}">${escapeHtml(ledger.name)}</option>`).join("");
+  selector.value = appState.selectedLedgerId;
+}
+
+function renderChatDashboard() {
+  const dashboard = appState.data?.dashboard;
+  if (!dashboard) return;
+  $("#chat-dashboard-summary").innerHTML = `<p class="eyebrow">实时财务摘要</p><div class="mini-metrics"><div><span>消费</span><strong>${currency(dashboard.spend)}</strong></div><div><span>收入</span><strong>${currency(dashboard.income)}</strong></div><div><span>净现金流</span><strong>${currency(dashboard.net)}</strong></div></div><p class="mini-insight">${escapeHtml(dashboard.insight)}</p><button class="text-button" data-view-target="dashboard">打开完整 Dashboard →</button>`;
+  $("#chat-dashboard-summary [data-view-target]").addEventListener("click", () => showView("dashboard"));
+}
+
 function renderDashboard() {
   const dashboard = appState.data.dashboard;
   $("#focus-month").textContent = monthLabel(dashboard.month);
@@ -79,18 +100,34 @@ function renderDashboard() {
 
 function renderLedger() {
   const rows = (appState.data.transactions || []).filter((tx) => {
+    const matchesLedger = !appState.selectedLedgerId || tx.ledgerId === appState.selectedLedgerId;
     const matchesFilter = appState.filter === "all" || tx.type === appState.filter;
     const haystack = `${tx.note} ${tx.category} ${tx.date}`.toLowerCase();
-    return matchesFilter && haystack.includes(appState.query.toLowerCase());
+    return matchesLedger && matchesFilter && haystack.includes(appState.query.toLowerCase());
   }).sort((a, b) => b.date.localeCompare(a.date));
   $("#ledger-empty").classList.toggle("hidden", rows.length > 0);
-  $("#ledger-table-body").innerHTML = rows.map((tx) => { const receipt = tx.receiptId && appState.data.receipts.find((item) => item.id === tx.receiptId); const receiptAction = receipt ? `<button class="row-action" data-view-receipt-id="${escapeHtml(tx.receiptId)}">凭证</button>` : ""; return `<tr><td><div class="table-transaction"><span class="transaction-icon ${tx.type}">${tx.type === "income" ? "↗" : "↘"}</span><div><strong>${escapeHtml(tx.note)}</strong><small>${escapeHtml((appState.data.ledgers.find((ledger) => ledger.id === tx.ledgerId) || {}).name || "个人账本")}</small></div></div></td><td><span class="category-tag">${escapeHtml(tx.category)}</span></td><td>${dateLabel(tx.date)}</td><td>${sourceLabel(tx.source)}</td><td class="align-right ${tx.type === "income" ? "amount-income" : "amount-expense"}">${tx.type === "income" ? "+" : "−"}${currency(tx.amount)}</td><td class="align-right"><div class="row-actions">${receiptAction}<button class="row-action" data-edit-id="${escapeHtml(tx.id)}">编辑</button><button class="row-action danger" data-delete-id="${escapeHtml(tx.id)}">删除</button></div></td></tr>`; }).join("");
+  $("#ledger-table-body").innerHTML = rows.map((tx) => { const receipt = tx.receiptId && appState.data.receipts.find((item) => item.id === tx.receiptId); const receiptAction = receipt ? `<button class="row-action" data-view-receipt-id="${escapeHtml(tx.receiptId)}">凭证</button>` : ""; return `<tr><td><div class="table-transaction"><span class="transaction-icon ${tx.type}">${tx.type === "income" ? "↗" : "↘"}</span><div><strong>${escapeHtml(tx.note)}</strong><small>${escapeHtml((appState.data.ledgers.find((ledger) => ledger.id === tx.ledgerId) || {}).name || "个人账本")}</small></div></div></td><td><span class="category-tag">${escapeHtml(tx.category)}</span></td><td>${dateLabel(tx.date)}</td><td>${sourceLabel(tx.source)}</td><td class="align-right ${tx.type === "income" ? "amount-income" : "amount-expense"}">${tx.type === "income" ? "+" : "−"}${currency(tx.amount)}</td><td class="align-right"><div class="row-actions"><button class="row-action" data-detail-id="${escapeHtml(tx.id)}">详情</button>${receiptAction}<button class="row-action" data-edit-id="${escapeHtml(tx.id)}">编辑</button><button class="row-action danger" data-delete-id="${escapeHtml(tx.id)}">删除</button></div></td></tr>`; }).join("");
 }
 
 function viewTransactionReceipt(receiptId) {
   const receipt = appState.data.receipts.find((item) => item.id === receiptId);
   if (!receipt?.url) { notify("这笔交易暂未保存原始图片"); return; }
   window.open(receipt.url, "_blank", "noopener");
+}
+
+function openTransactionDetails(transactionId) {
+  const tx = appState.data.transactions.find((item) => item.id === transactionId);
+  if (!tx) return;
+  const receipt = tx.receiptId && appState.data.receipts.find((item) => item.id === tx.receiptId);
+  const ledger = appState.data.ledgers.find((item) => item.id === tx.ledgerId);
+  $("#transaction-detail-content").innerHTML = `<p class="eyebrow">交易详情</p><h3 id="transaction-detail-title">${escapeHtml(tx.note)}</h3><div class="detail-grid"><span>金额</span><strong class="${tx.type === "income" ? "amount-income" : "amount-expense"}">${tx.type === "income" ? "+" : "−"}${currency(tx.amount)}</strong><span>类型</span><strong>${tx.type === "income" ? "收入" : "支出"}</strong><span>分类</span><strong>${escapeHtml(tx.category)}</strong><span>日期</span><strong>${escapeHtml(tx.date)}</strong><span>账本</span><strong>${escapeHtml(ledger?.name || "个人账本")}</strong><span>来源</span><strong>${sourceLabel(tx.source)}</strong></div>${receipt?.url ? `<div class="detail-receipt"><img src="${escapeHtml(receipt.url)}" alt="${escapeHtml(receipt.filename)}" /><button class="text-button" data-modal-receipt-id="${escapeHtml(receipt.id)}">查看原始凭证 →</button></div>` : `<p class="muted-label detail-empty">暂无关联原始凭证</p>`}`;
+  $("#transaction-modal").classList.remove("hidden");
+  const receiptButton = $("#transaction-detail-content [data-modal-receipt-id]");
+  if (receiptButton) receiptButton.addEventListener("click", () => viewTransactionReceipt(receiptButton.dataset.modalReceiptId));
+}
+
+function closeTransactionDetails() {
+  $("#transaction-modal").classList.add("hidden");
 }
 
 async function editTransaction(transactionId) {
@@ -121,7 +158,27 @@ async function deleteTransaction(transactionId) {
 
 function renderReceipts() {
   const receipts = appState.data.receipts || [];
-  $("#receipt-list").innerHTML = receipts.length ? receipts.map((receipt) => `<div class="receipt-row"><div class="receipt-thumb">${receipt.url ? `<img src="${receipt.url}" alt="${escapeHtml(receipt.filename)}" />` : "▤"}</div><div><strong>${escapeHtml(receipt.merchant)}</strong><small>${currency(receipt.amount)} · ${escapeHtml(receipt.category)} · ${dateLabel(receipt.date)}</small></div><div class="receipt-actions">${receipt.url ? `<button class="view-receipt" data-receipt-url="${receipt.url}">查看照片</button>` : ""}<button class="apply-receipt" data-receipt-id="${receipt.id}">记入账本</button></div></div>`).join("") : `<div class="empty-state">上传第一张凭证，开始建立你的财务档案。</div>`;
+  $("#receipt-list").innerHTML = receipts.length ? receipts.map((receipt) => `<div class="receipt-row"><div class="receipt-thumb">${receipt.url ? `<img src="${escapeHtml(receipt.url)}" alt="${escapeHtml(receipt.filename)}" />` : "▤"}</div><div><strong>${escapeHtml(receipt.merchant)}</strong><small>${currency(receipt.amount)} · ${escapeHtml(receipt.category)} · ${dateLabel(receipt.date)}</small></div><div class="receipt-actions">${receipt.url ? `<button class="view-receipt" data-receipt-url="${escapeHtml(receipt.url)}">查看照片</button>` : ""}<button class="edit-receipt" data-edit-receipt-id="${escapeHtml(receipt.id)}">编辑识别</button><button class="apply-receipt" data-receipt-id="${escapeHtml(receipt.id)}">记入账本</button></div></div>`).join("") : `<div class="empty-state">上传第一张凭证，开始建立你的财务档案。</div>`;
+}
+
+async function editReceipt(receiptId) {
+  const receipt = appState.data.receipts.find((item) => item.id === receiptId);
+  if (!receipt) return;
+  const merchant = window.prompt("商户", receipt.merchant);
+  if (merchant === null) return;
+  const amount = window.prompt("金额（元）", String(receipt.amount));
+  if (amount === null) return;
+  const category = window.prompt("分类", receipt.category);
+  if (category === null) return;
+  const date = window.prompt("日期（YYYY-MM-DD）", receipt.date);
+  if (date === null) return;
+  const parsedAmount = Number(amount);
+  if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) { notify("请输入有效金额"); return; }
+  try {
+    await api(`/api/receipts/${encodeURIComponent(receiptId)}`, { method: "PATCH", body: JSON.stringify({ merchant, amount: parsedAmount, category, date }) });
+    await loadState();
+    notify("识别结果已更新");
+  } catch (error) { notify(`更新失败：${error.message}`); }
 }
 
 function addMessage(text, role = "ai") {
@@ -151,6 +208,9 @@ async function confirmParsedTransactions() {
   if (!appState.pendingParse?.transactions?.length) return;
   try {
     const result = await api("/api/transactions/batch", { method: "POST", body: JSON.stringify({ ledgerName: appState.pendingParse.ledger?.name, transactions: appState.pendingParse.transactions }) });
+    const ledgerName = appState.pendingParse.ledger?.name;
+    const createdLedger = result.state?.ledgers?.find((ledger) => ledger.name === ledgerName);
+    if (createdLedger) appState.selectedLedgerId = createdLedger.id;
     addMessage(`已写入 ${result.transactions.length} 笔记录，所有字段都可以在智能账本中继续编辑。`);
     $("#parse-preview").classList.add("hidden");
     appState.pendingParse = null;
@@ -186,8 +246,7 @@ function dataUrlToPayload(dataUrl) {
   return base64 || "";
 }
 
-async function handleReceipt(event) {
-  const file = event.target.files?.[0];
+function processReceiptFile(file) {
   if (!file) return;
   if (file.size > 8 * 1024 * 1024) { notify("图片不能超过 8MB"); return; }
   const progress = $("#upload-progress");
@@ -211,6 +270,10 @@ async function handleReceipt(event) {
   reader.readAsDataURL(file);
 }
 
+function handleReceipt(event) {
+  processReceiptFile(event.target.files?.[0]);
+}
+
 async function applyReceipt(receiptId) {
   try { await api("/api/receipts/apply", { method: "POST", body: JSON.stringify({ receiptId }) }); await loadState(); notify("凭证已关联到交易"); }
   catch (error) { notify(`关联失败：${error.message}`); }
@@ -218,7 +281,7 @@ async function applyReceipt(receiptId) {
 
 async function loadState() {
   appState.data = await api("/api/state");
-  renderDashboard(); renderLedger(); renderReceipts();
+  renderLedgerSelector(); renderDashboard(); renderChatDashboard(); renderLedger(); renderReceipts();
 }
 
 function wireEvents() {
@@ -226,6 +289,7 @@ function wireEvents() {
   $$('[data-view-target]').forEach((button) => button.addEventListener("click", () => showView(button.dataset.viewTarget)));
   $("#mobile-menu").addEventListener("click", () => $(".sidebar").classList.toggle("open"));
   $("#refresh-button").addEventListener("click", () => loadState().then(() => notify("数据已刷新")));
+  $("#ledger-name-button").addEventListener("change", (event) => { appState.selectedLedgerId = event.target.value; renderLedger(); notify(`已切换到 ${event.target.options[event.target.selectedIndex].text}`); });
   $("#chat-form").addEventListener("submit", handleChat);
   $$(".quick-prompts button").forEach((button) => button.addEventListener("click", () => { $("#chat-input").value = button.dataset.prompt; $("#chat-input").focus(); }));
   $("#ledger-search").addEventListener("input", (event) => { appState.query = event.target.value; renderLedger(); });
@@ -236,12 +300,21 @@ function wireEvents() {
     const edit = event.target.closest("[data-edit-id]");
     const remove = event.target.closest("[data-delete-id]");
     const receipt = event.target.closest("[data-view-receipt-id]");
+    const detail = event.target.closest("[data-detail-id]");
     if (edit) editTransaction(edit.dataset.editId);
     if (remove) deleteTransaction(remove.dataset.deleteId);
     if (receipt) viewTransactionReceipt(receipt.dataset.viewReceiptId);
+    if (detail) openTransactionDetails(detail.dataset.detailId);
   });
   $("#receipt-file").addEventListener("change", handleReceipt);
-  $("#receipt-list").addEventListener("click", (event) => { const apply = event.target.closest("[data-receipt-id]"); const view = event.target.closest("[data-receipt-url]"); if (apply) applyReceipt(apply.dataset.receiptId); if (view) window.open(view.dataset.receiptUrl, "_blank", "noopener"); });
+  const dropzone = $("#receipt-dropzone");
+  ["dragenter", "dragover"].forEach((eventName) => dropzone.addEventListener(eventName, (event) => { event.preventDefault(); dropzone.classList.add("drop-active"); }));
+  ["dragleave", "drop"].forEach((eventName) => dropzone.addEventListener(eventName, (event) => { event.preventDefault(); dropzone.classList.remove("drop-active"); }));
+  dropzone.addEventListener("drop", (event) => processReceiptFile(event.dataTransfer.files?.[0]));
+  $("#receipt-list").addEventListener("click", (event) => { const apply = event.target.closest("[data-receipt-id]"); const edit = event.target.closest("[data-edit-receipt-id]"); const view = event.target.closest("[data-receipt-url]"); if (apply) applyReceipt(apply.dataset.receiptId); if (edit) editReceipt(edit.dataset.editReceiptId); if (view) window.open(view.dataset.receiptUrl, "_blank", "noopener"); });
+  $("#close-transaction-modal").addEventListener("click", closeTransactionDetails);
+  $("#transaction-modal").addEventListener("click", (event) => { if (event.target.matches("[data-close-modal]")) closeTransactionDetails(); });
+  document.addEventListener("keydown", (event) => { if (event.key === "Escape") closeTransactionDetails(); });
 }
 
 async function init() {
