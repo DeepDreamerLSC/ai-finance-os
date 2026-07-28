@@ -25,6 +25,26 @@ def test_send_code_and_cooldown(client):
     assert second.status_code == 429
 
 
+def test_debug_sms_is_never_exposed_through_public_host(client):
+    response = client.post(
+        "/api/auth/sms/send",
+        headers={"Host": "finance.chiraliumai.cn"},
+        json={"phone": "13800138998", "purpose": "login"},
+    )
+    assert response.status_code == 503
+    assert response.json()["detail"] == "短信服务尚未配置"
+
+
+def test_loopback_host_detection_supports_ipv6(client):
+    response = client.post(
+        "/api/auth/sms/send",
+        headers={"Host": "[::1]:18081"},
+        json={"phone": "13800138996", "purpose": "login"},
+    )
+    assert response.status_code == 200
+    assert response.json()["debug_code"] == "123456"
+
+
 def test_phone_hour_limit(client, fake_redis, monkeypatch):
     monkeypatch.setattr(settings, "sms_phone_hour_limit", 2)
     phone = "13800138001"
@@ -166,6 +186,16 @@ def test_logout_revokes_refresh(client, login):
 def test_refresh_without_session_is_anonymous_not_an_error(client):
     response = client.post("/api/auth/refresh", headers={"Origin": settings.frontend_origin})
     assert response.status_code == 204
+
+
+def test_invalid_refresh_cookie_is_cleared(client):
+    client.cookies.set(settings.refresh_cookie_name, "invalid-session", path="/api/auth")
+    response = client.post("/api/auth/refresh", headers={"Origin": settings.frontend_origin})
+    assert response.status_code == 401
+    set_cookie = response.headers["set-cookie"]
+    assert f"{settings.refresh_cookie_name}=" in set_cookie
+    assert "Max-Age=0" in set_cookie
+    assert "Path=/api/auth" in set_cookie
 
 
 def test_inactive_user_cannot_refresh(client, login, db_session):

@@ -11,6 +11,7 @@ from typing import Any
 import httpx
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 from redis import Redis
@@ -75,6 +76,11 @@ def client_ip(request: Request) -> str:
         if value:
             return value.split(",", 1)[0].strip()[:64]
     return (request.client.host if request.client else "")[:64]
+
+
+def is_loopback_request(request: Request) -> bool:
+    host = (request.url.hostname or "").lower()
+    return host in {"127.0.0.1", "localhost", "::1"}
 
 
 def device_name(user_agent: str) -> str:
@@ -407,6 +413,8 @@ async def sms_send(
 ) -> dict:
     if body.purpose != "login":
         raise HTTPException(status_code=400, detail="不支持的验证码用途")
+    if not _use_remote_sms() and not is_loopback_request(request):
+        raise HTTPException(status_code=503, detail="短信服务尚未配置")
     phone = normalize_phone(body.phone)
     debug_code = await send_login_code(redis, phone, client_ip(request), body.turnstile_token)
     payload = {"message": "验证码已发送"}
@@ -459,14 +467,16 @@ def refresh(
         .with_for_update()
     )
     if not session or _as_utc(session.expires_at) <= utcnow():
-        clear_refresh_cookie(response)
-        raise HTTPException(status_code=401, detail="登录状态已失效")
+        error_response = JSONResponse(status_code=401, content={"detail": "登录状态已失效"})
+        clear_refresh_cookie(error_response)
+        return error_response
     user = db.scalar(select(User).where(User.id == session.user_id, User.is_active.is_(True)))
     if not user:
         session.revoked_at = utcnow()
         db.commit()
-        clear_refresh_cookie(response)
-        raise HTTPException(status_code=401, detail="登录状态已失效")
+        error_response = JSONResponse(status_code=401, content={"detail": "登录状态已失效"})
+        clear_refresh_cookie(error_response)
+        return error_response
     new_refresh = secrets.token_urlsafe(48)
     session.refresh_token_hash = hash_refresh_token(new_refresh)
     session.last_seen_at = utcnow()
