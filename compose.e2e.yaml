@@ -1,0 +1,13 @@
+services:
+  finance-app:
+    environment:
+      APP_ENV: test
+      JWT_SECRET_KEY: e2e-only-jwt-secret-that-is-long-enough
+      SMS_CODE_PEPPER: e2e-only-sms-code-pepper
+      SMS_REMOTE_ENABLED: "false"
+      SMS_DEV_FORCE_LOCAL: "true"
+      SMS_DEV_EXPOSE_CODE: "true"
+      SMS_TEST_CODE: "123456"
+      COOKIE_SECURE: "false"
+      TURNSTILE_SITE_KEY: ""
+      TURNSTILE_SECRET_KEY: ""

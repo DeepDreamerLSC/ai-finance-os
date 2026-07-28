@@ -1,101 +1,107 @@
 # AI Personal Finance OS
 
-AI-native personal finance assistant MVP inspired by the product concept deck in the parent workspace.
+AI 原生个人财务助手。当前版本提供手机号验证码登录、30 天设备会话、自然语言记账、多账本、图片凭证、财务看板和用户级数据隔离。
 
-The MVP is intentionally dependency-light: a Python standard-library API serves a responsive web UI, stores demo data in JSON, and exposes adapter boundaries for a real model/OCR provider later.
+## 架构
 
-## Run locally
+- `finance-app`：FastAPI + 原生 HTML/CSS/JavaScript
+- `finance-postgres`：用户、会话、账本、交易和凭证元数据
+- `finance-redis`：验证码、冷却时间、发送频控和一次性校验状态
+- `finance-uploads`：原始凭证文件；只能通过带 Bearer Token 的接口读取
 
-```bash
-python3 -m app.server
-```
+浏览器只把短期 Access Token 保存在内存中。30 天 Refresh Token 使用随机值、数据库哈希存储、`HttpOnly` Cookie 和每次续签轮换，不会写入 `localStorage`。
 
-Open <http://127.0.0.1:8080>. The local server writes runtime data to `./runtime/data` unless `DATA_DIR` is set.
-
-## Run with Docker
-
-Build and start the standalone image:
+## 本地启动
 
 ```bash
-docker build -t ai-finance-os:local .
-docker run --rm \
-  --name ai-finance-os \
-  -p 8080:8080 \
-  -v ai-finance-os-data:/app/data \
-  ai-finance-os:local
+cp .env.example .env
+docker compose -f compose.yaml -f compose.e2e.yaml up --build -d
+docker compose -f compose.yaml -f compose.e2e.yaml ps
 ```
 
-Or use Compose:
+打开 <http://127.0.0.1:18081>。E2E 配置使用固定测试验证码 `123456`，只用于本地测试，不能用于生产环境。
+
+健康检查：
 
 ```bash
-docker compose up --build -d
-docker compose ps
+curl --fail http://127.0.0.1:18081/health
 ```
 
-Stop and clean up the demo container with `docker compose down`. Add `--volumes` only when you intentionally want to remove the local demo data.
-
-Open <http://127.0.0.1:8080>. Health is available at <http://127.0.0.1:8080/health>.
-
-The named volume preserves ledgers, transactions, and uploaded receipts across container recreation. The container runs as the unprivileged `app` user and does not require an external AI token in demo mode.
-
-## Environment variables
-
-Copy `.env.example` when integrating a real provider. The demo parser and deterministic insight engine work without credentials.
-
-To connect a real provider later, implement the `FinanceAgent` adapter in `app/server.py` and inject `AI_PROVIDER`, `AI_API_URL`, and `AI_API_TOKEN` at runtime. The browser never receives the token.
-
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `HOST` | `0.0.0.0` in Docker | Bind address for the HTTP server |
-| `PORT` | `8080` | HTTP port |
-| `DATA_DIR` | `./runtime/data` locally, `/app/data` in Docker | JSON state and uploads |
-| `AI_PROVIDER` | `demo` | `demo` or future provider adapter |
-| `AI_API_URL` | empty | Future provider endpoint |
-| `AI_API_TOKEN` | empty | Runtime-injected provider token; never bake into an image |
-| `LOG_LEVEL` | `INFO` | Server log level |
-
-## Tests
+停止服务但保留数据：
 
 ```bash
-python3 -m unittest discover -s tests -v
+docker compose -f compose.yaml -f compose.e2e.yaml down
 ```
 
-The tests cover command parsing, multiple-record extraction, deterministic insights, JSON persistence, receipt asset migration, idempotent receipt-to-transaction linking, and transaction edit/delete behavior. Container smoke checks should be run after the Docker daemon is available.
+只有明确要删除 PostgreSQL、Redis 和凭证数据时，才附加 `--volumes`。
 
-## Product interaction checklist
+## 生产配置
 
-- **AI 对话**：输入“刚刚停车112元，帮我记一下”或“创建2026账本，把停车费112元记录进去，再把4月份销冠奖金500元放进去。”；系统先展示结构化预览，确认后才写入。
-- **智能账本**：通过侧栏切换账本，支持搜索、收入/支出筛选、交易详情、编辑和删除。
-- **图片凭证**：在图片凭证页选择或拖入 PNG/JPG/WEBP（单张不超过 8MB），查看进度，编辑识别结果后关联交易；原始图片保存在 `/app/data/uploads`，已关联凭证会显示“已记账”并避免重复生成流水。
-- **Dashboard / 问答**：趋势、分类占比、现金流和最近交易都由 JSON 数据计算；在 AI 对话中询问“为什么这个月花这么多？”会得到历史平均差额、原因和建议。
+复制 `.env.example`，至少提供以下配置：
 
-## Container verification
+| 配置 | 用途 |
+| --- | --- |
+| `APP_ENV=production` | 启用生产安全检查 |
+| `POSTGRES_PASSWORD` | PostgreSQL 独立强密码 |
+| `JWT_SECRET_KEY` | 至少 32 字符的独立随机密钥 |
+| `SMS_CODE_PEPPER` | 与 JWT 密钥不同的验证码哈希密钥 |
+| `COOKIE_SECURE=true` | 只通过 HTTPS 发送长期会话 Cookie |
+| `FRONTEND_ORIGIN=https://finance.chiraliumai.cn` | Cookie 写操作的可信来源 |
+| `SMS_ACCESS_KEY` / `SMS_SECRET_KEY` | 阿里云短信认证 |
+| `SMS_SIGN_NAME` | 已审核短信签名 |
+| `SMS_TEMPLATE_CODE_LOGIN` | 已审核登录验证码模板 |
+| `SMS_REMOTE_ENABLED=true` | 启用真实短信 |
+| `SMS_DEV_FORCE_LOCAL=false` | 禁止本地验证码实现 |
+| `TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY` | 异常频率后的人机验证 |
 
-The following checks were executed against the containerized app, not a host-only development server:
+生产环境会拒绝弱 JWT 密钥、不安全 Cookie、开发验证码、缺失短信配置或缺失 Turnstile 配置，并在启动阶段直接失败。
+
+不要把 `.env`、云厂商密钥或实际验证码提交到 Git。短信接口包含手机号分钟冷却、手机号小时/每日、IP 小时、系统每日上限、最大验证次数、一次性消费和异常阈值 Turnstile。
+
+## 数据库迁移
+
+容器启动时自动执行：
 
 ```bash
-docker build -t ai-finance-os:local .
-docker run -d --name ai-finance-os \
-  -p 8080:8080 \
-  -v ai-finance-os-data:/app/data \
-  ai-finance-os:local
-docker inspect ai-finance-os
-curl http://127.0.0.1:8080/health
+python -m alembic upgrade head
 ```
 
-When the host's port 8080 is already occupied, map a different host port while keeping the container port unchanged:
+旧版 JSON 数据不会自动归属给首个登录用户。必须由操作者明确指定所有者：
 
 ```bash
-docker run -d --name ai-finance-os-demo \
-  -p 18081:8080 \
-  -v ai-finance-os-demo-data:/app/data \
-  ai-finance-os:local
+docker compose exec finance-app python scripts/import_legacy_state.py \
+  --phone 13800138000 \
+  --state-file /path/in/container/state.json \
+  --upload-root /path/in/container/uploads
 ```
 
-The verified local demo is available at <http://127.0.0.1:18081>. The image also builds and responds to health/parsing smoke checks with `--platform linux/amd64` on an ARM development host.
+目标手机号需要先登录一次创建账户。导入程序只把数据写入显式指定的账户。
 
-To verify persistence, create a ledger, transaction, and receipt, stop and remove the container (keep the named volume), then recreate it with the same `-v` mapping. The state file and `/app/data/uploads` contents should be available immediately after the second container becomes healthy.
+## 验证
 
-## MVP boundaries
+后端与安全边界：
 
-The current release demonstrates natural-language bookkeeping, multiple ledgers, deterministic categorization, receipt upload and association, dashboard analytics, and AI-style financial explanations. A real LLM/OCR provider, bank sync, investment management, and complex budgeting are intentionally adapter-ready but outside this validation slice.
+```bash
+python -m venv .venv
+.venv/bin/pip install -r requirements-dev.txt
+PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -p no:cacheprovider
+```
+
+前端纯函数：
+
+```bash
+npm ci
+npm run test:frontend
+```
+
+容器启动后运行桌面和移动端 Playwright：
+
+```bash
+npm run test:e2e
+```
+
+覆盖范围包括验证码冷却与小时/每日/全局频控、错误与过期验证码、并发一次性消费、自动创建用户、30 天会话和轮换、注销与设备撤销、跨来源保护、API 数据隔离、登录恢复、无效会话回退以及浏览器层双用户账本隔离。
+
+## 产品边界
+
+本版本保留确定性的本地 Finance Agent，用于演示自然语言解析、分类与洞察。真实 LLM/OCR、银行同步、投资管理和复杂预算不在当前登录与多租户验证范围内。
