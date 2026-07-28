@@ -80,6 +80,63 @@ select.select-button { appearance: none; cursor: pointer; }
 .toast { position: fixed; right: 26px; bottom: 25px; z-index: 10; transform: translateY(20px); opacity: 0; pointer-events: none; background: var(--ink); color: #fff; padding: 11px 15px; border-radius: 10px; box-shadow: var(--shadow); transition: .2s ease; font-size: 13px; }.toast.show { transform: translateY(0); opacity: 1; }
 
 @media (max-width: 1020px) { .sidebar { width: 214px; flex-basis: 214px; }.main-shell { padding-left: 28px; padding-right: 28px; }.dashboard-grid, .chat-layout, .receipts-layout { grid-template-columns: 1fr; }.category-surface { min-height: 280px; } }
-@media (max-width: 740px) { .sidebar { position: fixed; left: 0; top: 0; bottom: 0; z-index: 20; transform: translateX(-100%); transition: transform .2s ease; width: 248px; }.sidebar.open { transform: translateX(0); }.main-shell { padding: 20px 16px 34px; width: 100%; }.topbar { margin-bottom: 28px; }.mobile-menu { display: block; margin-right: 10px; }.topbar > div:first-of-type { flex: 1; }.topbar-actions .month-chip { display: none; }.topbar h1 { font-size: 20px; }.view-heading { align-items: flex-start; flex-direction: column; }.view-heading h2 { font-size: 32px; }.primary-button { width: 100%; }.metric-grid { grid-template-columns: 1fr; gap: 10px; }.metric-card { padding: 17px; }.metric-card strong { font-size: 31px; }.dashboard-grid { gap: 12px; }.trend-surface, .category-surface, .recent-surface { padding: 17px; }.trend-chart { gap: 7px; height: 190px; }.donut-row { justify-content: space-around; }.ledger-toolbar { align-items: stretch; flex-direction: column; }.filter-tabs { overflow: auto; }.ledger-table { min-width: 640px; }.ledger-table-wrap { overflow-x: auto; }.ledger-table th:nth-child(4), .ledger-table td:nth-child(4) { display: none; }.chat-panel { min-height: 620px; padding: 17px; }.message { max-width: 90%; }.quick-prompts { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 11px; }.quick-prompts button { white-space: nowrap; }.receipt-row { grid-template-columns: 58px minmax(0, 1fr); }.receipt-thumb { width: 58px; height: 58px; }.receipt-actions { grid-column: 2; }.toast { right: 14px; left: 14px; bottom: 14px; text-align: center; } }
+@media (max-width: 740px) {
+  .sidebar { position: fixed; left: 0; top: 0; bottom: 0; z-index: 20; transform: translateX(-100%); transition: transform .2s ease; width: 248px; }
+  .sidebar.open { transform: translateX(0); }
+  .main-shell { padding: 20px 16px 34px; width: 100%; }
+  .topbar { margin-bottom: 28px; }
+  .mobile-menu { display: block; margin-right: 10px; }
+  .topbar > div:first-of-type { flex: 1; }
+  .topbar-actions .month-chip { display: none; }
+  .topbar h1 { font-size: 20px; }
+  .view-heading { align-items: flex-start; flex-direction: column; }
+  .view-heading h2 { font-size: 32px; }
+  .primary-button { width: 100%; }
+  .metric-grid { grid-template-columns: 1fr; gap: 10px; }
+  .metric-card { padding: 17px; }
+  .metric-card strong { font-size: 31px; }
+  .dashboard-grid { gap: 12px; }
+  .trend-surface, .category-surface, .recent-surface { padding: 17px; }
+  .trend-chart { gap: 7px; height: 190px; }
+  .donut-row { justify-content: space-around; }
+  .ledger-toolbar { align-items: stretch; flex-direction: column; }
+  .filter-tabs { overflow: auto; }
+  .ledger-table-wrap { overflow: visible; border: 0; background: transparent; box-shadow: none; }
+  .ledger-table { display: block; width: 100%; min-width: 0; }
+  .ledger-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .ledger-table tbody { display: grid; gap: 10px; }
+  .ledger-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "transaction amount"
+      "category date"
+      "source source"
+      "actions actions";
+    gap: 10px 14px;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: var(--paper);
+    box-shadow: 0 9px 22px rgba(11,16,32,.035);
+  }
+  .ledger-table td { padding: 0; border: 0; }
+  .ledger-table td:nth-child(1) { grid-area: transaction; }
+  .ledger-table td:nth-child(2) { grid-area: category; }
+  .ledger-table td:nth-child(3) { grid-area: date; align-self: center; text-align: right; color: var(--muted); font-size: 12px; }
+  .ledger-table td:nth-child(4) { grid-area: source; display: block; color: var(--faint); font-size: 11px; }
+  .ledger-table td:nth-child(5) { grid-area: amount; align-self: start; text-align: right; white-space: nowrap; }
+  .ledger-table td:nth-child(6) { grid-area: actions; padding-top: 11px; border-top: 1px solid var(--line); text-align: left; }
+  .row-actions { width: 100%; flex-wrap: wrap; justify-content: flex-start; }
+  .row-action { flex: 1 1 62px; min-height: 34px; font-size: 11px; }
+  .chat-panel { min-height: 620px; padding: 17px; }
+  .message { max-width: 90%; }
+  .quick-prompts { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 11px; }
+  .quick-prompts button { white-space: nowrap; }
+  .receipt-row { grid-template-columns: 58px minmax(0, 1fr); }
+  .receipt-thumb { width: 58px; height: 58px; }
+  .receipt-actions { grid-column: 2; }
+  .toast { right: 14px; left: 14px; bottom: 14px; text-align: center; }
+}
 /* Keep receipt actions usable when several controls wrap on narrow screens. */
 .receipt-actions { flex-wrap: wrap; justify-content: flex-end; }

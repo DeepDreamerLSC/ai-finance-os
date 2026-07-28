@@ -60,13 +60,13 @@ To connect a real provider later, implement the `FinanceAgent` adapter in `app/s
 python3 -m unittest discover -s tests -v
 ```
 
-The tests cover command parsing, multiple-record extraction, deterministic insights, JSON persistence, and transaction edit/delete behavior. Container smoke checks should be run after the Docker daemon is available.
+The tests cover command parsing, multiple-record extraction, deterministic insights, JSON persistence, receipt asset migration, idempotent receipt-to-transaction linking, and transaction edit/delete behavior. Container smoke checks should be run after the Docker daemon is available.
 
 ## Product interaction checklist
 
 - **AI 对话**：输入“刚刚停车112元，帮我记一下”或“创建2026账本，把停车费112元记录进去，再把4月份销冠奖金500元放进去。”；系统先展示结构化预览，确认后才写入。
 - **智能账本**：通过侧栏切换账本，支持搜索、收入/支出筛选、交易详情、编辑和删除。
-- **图片凭证**：在图片凭证页选择或拖入 PNG/JPG/WEBP（单张不超过 8MB），查看进度，编辑识别结果后关联交易；原始图片保存在 `/app/data/uploads`。
+- **图片凭证**：在图片凭证页选择或拖入 PNG/JPG/WEBP（单张不超过 8MB），查看进度，编辑识别结果后关联交易；原始图片保存在 `/app/data/uploads`，已关联凭证会显示“已记账”并避免重复生成流水。
 - **Dashboard / 问答**：趋势、分类占比、现金流和最近交易都由 JSON 数据计算；在 AI 对话中询问“为什么这个月花这么多？”会得到历史平均差额、原因和建议。
 
 ## Container verification

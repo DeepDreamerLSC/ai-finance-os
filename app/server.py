@@ -26,6 +26,38 @@ STATE_FILE = DATA_DIR / "state.json"
 PORT = int(os.getenv("PORT", "8080"))
 HOST = os.getenv("HOST", "0.0.0.0")
 STATE_LOCK = threading.RLock()
+DEMO_RECEIPT_ID = "receipt-seed-1"
+DEMO_RECEIPT_FILENAME = "receipt-seed-1.svg"
+DEMO_RECEIPT_URL = f"/uploads/{DEMO_RECEIPT_FILENAME}"
+DEMO_RECEIPT_SVG = """\
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="1040" viewBox="0 0 720 1040">
+  <rect width="720" height="1040" fill="#eef2f3"/>
+  <rect x="92" y="50" width="536" height="940" rx="18" fill="#fff" stroke="#dce4e5" stroke-width="2"/>
+  <text x="360" y="124" text-anchor="middle" font-family="Arial, sans-serif" font-size="36" font-weight="700" fill="#102428">盒马鲜生</text>
+  <text x="360" y="166" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" fill="#66787b">演示凭证 · 非真实消费票据</text>
+  <path d="M132 206H588" stroke="#cbd5d7" stroke-width="2" stroke-dasharray="8 8"/>
+  <text x="132" y="254" font-family="Arial, sans-serif" font-size="20" fill="#43575a">日期</text>
+  <text x="588" y="254" text-anchor="end" font-family="Arial, sans-serif" font-size="20" fill="#102428">2026-07-05</text>
+  <text x="132" y="304" font-family="Arial, sans-serif" font-size="20" fill="#43575a">订单</text>
+  <text x="588" y="304" text-anchor="end" font-family="Arial, sans-serif" font-size="20" fill="#102428">DEMO-0705-268</text>
+  <path d="M132 346H588" stroke="#cbd5d7" stroke-width="2"/>
+  <text x="132" y="398" font-family="Arial, sans-serif" font-size="22" font-weight="700" fill="#102428">商品</text>
+  <text x="588" y="398" text-anchor="end" font-family="Arial, sans-serif" font-size="22" font-weight="700" fill="#102428">金额</text>
+  <text x="132" y="454" font-family="Arial, sans-serif" font-size="20" fill="#43575a">生鲜食品</text>
+  <text x="588" y="454" text-anchor="end" font-family="Arial, sans-serif" font-size="20" fill="#102428">¥126.00</text>
+  <text x="132" y="504" font-family="Arial, sans-serif" font-size="20" fill="#43575a">日用百货</text>
+  <text x="588" y="504" text-anchor="end" font-family="Arial, sans-serif" font-size="20" fill="#102428">¥98.00</text>
+  <text x="132" y="554" font-family="Arial, sans-serif" font-size="20" fill="#43575a">饮品零食</text>
+  <text x="588" y="554" text-anchor="end" font-family="Arial, sans-serif" font-size="20" fill="#102428">¥44.00</text>
+  <path d="M132 600H588" stroke="#cbd5d7" stroke-width="2"/>
+  <text x="132" y="668" font-family="Arial, sans-serif" font-size="25" font-weight="700" fill="#102428">合计</text>
+  <text x="588" y="668" text-anchor="end" font-family="Arial, sans-serif" font-size="34" font-weight="700" fill="#0d8f83">¥268.00</text>
+  <rect x="132" y="724" width="456" height="104" rx="14" fill="#f2f8f7"/>
+  <text x="160" y="766" font-family="Arial, sans-serif" font-size="18" fill="#526669">AI 识别结果</text>
+  <text x="160" y="802" font-family="Arial, sans-serif" font-size="20" font-weight="700" fill="#102428">商户：盒马鲜生 · 分类：购物</text>
+  <text x="360" y="914" text-anchor="middle" font-family="Arial, sans-serif" font-size="17" fill="#89999b">AI Personal Finance OS Demo</text>
+</svg>
+"""
 
 CATEGORY_RULES = (
     ("交通", ("停车", "打车", "地铁", "公交", "交通", "加油")),
@@ -101,7 +133,7 @@ def _seed_state() -> dict:
         return f"{year:04d}-{month_zero + 1:02d}-{min(day, 28):02d}"
 
     transactions = [
-        {"id": "tx-seed-1", "ledgerId": ledger_id, "amount": 268, "type": "expense", "category": "购物", "note": "盒马采购", "date": d(0, 5), "source": "receipt", "receiptId": "receipt-seed-1"},
+        {"id": "tx-seed-1", "ledgerId": ledger_id, "amount": 268, "type": "expense", "category": "购物", "note": "盒马采购", "date": d(0, 5), "source": "receipt", "receiptId": DEMO_RECEIPT_ID},
         {"id": "tx-seed-2", "ledgerId": ledger_id, "amount": 112, "type": "expense", "category": "交通", "note": "停车费", "date": d(0, 8), "source": "manual"},
         {"id": "tx-seed-3", "ledgerId": ledger_id, "amount": 500, "type": "income", "category": "奖金", "note": "销冠奖金", "date": d(0, 10), "source": "manual"},
         {"id": "tx-seed-4", "ledgerId": ledger_id, "amount": 860, "type": "expense", "category": "餐饮", "note": "外卖", "date": d(0, 12), "source": "manual"},
@@ -111,7 +143,52 @@ def _seed_state() -> dict:
         {"id": "tx-seed-8", "ledgerId": ledger_id, "amount": 3800, "type": "expense", "category": "住房", "note": "房租", "date": d(2, 3), "source": "manual"},
         {"id": "tx-seed-9", "ledgerId": ledger_id, "amount": 420, "type": "expense", "category": "交通", "note": "打车", "date": d(3, 18), "source": "manual"},
     ]
-    return {"ledgers": [{"id": ledger_id, "name": f"{today.year} 账本", "createdAt": _now_iso()}], "transactions": transactions, "receipts": [{"id": "receipt-seed-1", "filename": "盒马小票.png", "merchant": "盒马鲜生", "amount": 268, "date": d(0, 5), "category": "购物", "url": "", "createdAt": _now_iso()}]}
+    return {
+        "ledgers": [{"id": ledger_id, "name": f"{today.year} 账本", "createdAt": _now_iso()}],
+        "transactions": transactions,
+        "receipts": [{
+            "id": DEMO_RECEIPT_ID,
+            "filename": "盒马演示小票.svg",
+            "merchant": "盒马鲜生",
+            "amount": 268,
+            "date": d(0, 5),
+            "category": "购物",
+            "url": DEMO_RECEIPT_URL,
+            "transactionId": "tx-seed-1",
+            "createdAt": _now_iso(),
+        }],
+    }
+
+
+def _materialize_demo_receipt(state: dict) -> bool:
+    """Keep the bundled demo receipt usable without replacing user data."""
+    receipt = next((item for item in state.get("receipts", []) if item.get("id") == DEMO_RECEIPT_ID), None)
+    if receipt is None:
+        return False
+
+    UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+    asset_path = UPLOADS_DIR / DEMO_RECEIPT_FILENAME
+    if not asset_path.exists():
+        asset_path.write_text(DEMO_RECEIPT_SVG, encoding="utf-8")
+
+    expected = {
+        "filename": "盒马演示小票.svg",
+        "url": DEMO_RECEIPT_URL,
+    }
+    changed = any(receipt.get(key) != value for key, value in expected.items())
+    if changed:
+        receipt.update(expected)
+    linked_transaction = next(
+        (item for item in state.get("transactions", []) if item.get("receiptId") == DEMO_RECEIPT_ID),
+        None,
+    )
+    linked_id = linked_transaction.get("id") if linked_transaction else None
+    if linked_id and receipt.get("transactionId") != linked_id:
+        receipt["transactionId"] = linked_id
+        changed = True
+    elif not linked_id and receipt.pop("transactionId", None) is not None:
+        changed = True
+    return changed
 
 
 def _ensure_data() -> None:
@@ -125,11 +202,13 @@ def _read_state() -> dict:
     _ensure_data()
     with STATE_LOCK:
         try:
-            return json.loads(STATE_FILE.read_text(encoding="utf-8"))
+            state = json.loads(STATE_FILE.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
             state = _seed_state()
             _write_state(state)
-            return state
+        if _materialize_demo_receipt(state):
+            _write_state(state)
+        return state
 
 
 def _write_state(state: dict) -> None:
@@ -253,13 +332,50 @@ def update_receipt(receipt_id: str, updates: dict) -> dict | None:
         return receipt
 
 
+def apply_receipt(receipt_id: str, ledger_name: str | None = None) -> tuple[dict | None, bool]:
+    """Atomically link one receipt to one transaction."""
+    with STATE_LOCK:
+        state = _read_state()
+        receipt = next((item for item in state["receipts"] if item["id"] == receipt_id), None)
+        if receipt is None:
+            return None, False
+
+        existing_id = receipt.get("transactionId")
+        existing = next((item for item in state["transactions"] if item["id"] == existing_id), None)
+        if existing is not None:
+            return existing, False
+
+        name = ledger_name or state["ledgers"][0]["name"]
+        ledger = ensure_ledger(state, name)
+        transaction = {
+            "id": f"tx-{uuid.uuid4().hex[:10]}",
+            "ledgerId": ledger["id"],
+            "amount": round(float(receipt["amount"]), 2),
+            "type": "expense",
+            "category": receipt["category"],
+            "note": receipt["merchant"],
+            "date": receipt["date"],
+            "receiptId": receipt_id,
+            "source": "receipt",
+        }
+        state["transactions"].append(transaction)
+        receipt["transactionId"] = transaction["id"]
+        _write_state(state)
+        return transaction, True
+
+
 def delete_transaction(transaction_id: str) -> bool:
     with STATE_LOCK:
         state = _read_state()
-        original_count = len(state["transactions"])
-        state["transactions"] = [item for item in state["transactions"] if item["id"] != transaction_id]
-        if len(state["transactions"]) == original_count:
+        transaction = next((item for item in state["transactions"] if item["id"] == transaction_id), None)
+        if transaction is None:
             return False
+        state["transactions"] = [item for item in state["transactions"] if item["id"] != transaction_id]
+        receipt_id = transaction.get("receiptId")
+        if receipt_id:
+            receipt = next((item for item in state["receipts"] if item["id"] == receipt_id), None)
+            if receipt and receipt.get("transactionId") == transaction_id:
+                receipt.pop("transactionId")
         _write_state(state)
         return True
 
@@ -269,6 +385,7 @@ def create_receipt(payload: dict) -> dict:
     safe_name = re.sub(r"[^A-Za-z0-9_.-\u4e00-\u9fff]", "_", filename)[:80] or "receipt.bin"
     receipt_id = f"receipt-{uuid.uuid4().hex[:10]}"
     raw_data = base64.b64decode(payload.get("data", ""), validate=False)
+    UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
     path = UPLOADS_DIR / f"{receipt_id}-{safe_name}"
     path.write_bytes(raw_data)
     text = f"{filename} {payload.get('hint', '')}"
@@ -399,13 +516,12 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if path == "/api/receipts/apply":
                 receipt_id = str(payload.get("receiptId", ""))
-                state = _read_state()
-                receipt = next((item for item in state["receipts"] if item["id"] == receipt_id), None)
-                if not receipt:
+                transaction, created = apply_receipt(receipt_id, payload.get("ledgerName"))
+                if transaction is None:
                     self._json(HTTPStatus.NOT_FOUND, {"error": "receipt not found"})
                     return
-                added = add_transactions({"transactions": [{"amount": receipt["amount"], "type": "expense", "category": receipt["category"], "note": receipt["merchant"], "date": receipt["date"], "receiptId": receipt_id, "source": "receipt"}]}, payload.get("ledgerName"))
-                self._json(HTTPStatus.CREATED, {"transactions": added})
+                status = HTTPStatus.CREATED if created else HTTPStatus.OK
+                self._json(status, {"transactions": [transaction], "created": created})
                 return
             self._json(HTTPStatus.NOT_FOUND, {"error": "route not found"})
         except (ValueError, json.JSONDecodeError) as exc:

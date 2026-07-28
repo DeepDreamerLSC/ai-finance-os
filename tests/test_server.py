@@ -71,6 +71,60 @@ class FinanceServerTests(unittest.TestCase):
             finally:
                 server.DATA_DIR, server.UPLOADS_DIR, server.STATE_FILE = previous
 
+    def test_existing_demo_state_materializes_linked_receipt(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            previous = (server.DATA_DIR, server.UPLOADS_DIR, server.STATE_FILE)
+            try:
+                server.DATA_DIR = Path(temp_dir)
+                server.UPLOADS_DIR = Path(temp_dir) / "uploads"
+                server.STATE_FILE = Path(temp_dir) / "state.json"
+                state = server._seed_state()
+                receipt = state["receipts"][0]
+                receipt["filename"] = "盒马小票.png"
+                receipt["url"] = ""
+                receipt.pop("transactionId")
+                server._write_state(state)
+
+                migrated = server._read_state()
+                migrated_receipt = migrated["receipts"][0]
+                asset_path = server.UPLOADS_DIR / server.DEMO_RECEIPT_FILENAME
+
+                self.assertEqual(migrated_receipt["url"], server.DEMO_RECEIPT_URL)
+                self.assertEqual(migrated_receipt["transactionId"], "tx-seed-1")
+                self.assertTrue(asset_path.exists())
+                self.assertIn("演示凭证", asset_path.read_text(encoding="utf-8"))
+
+                self.assertTrue(server.delete_transaction("tx-seed-1"))
+                self.assertNotIn("transactionId", server._read_state()["receipts"][0])
+            finally:
+                server.DATA_DIR, server.UPLOADS_DIR, server.STATE_FILE = previous
+
+    def test_receipt_application_is_linked_and_idempotent(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            previous = (server.DATA_DIR, server.UPLOADS_DIR, server.STATE_FILE)
+            try:
+                server.DATA_DIR = Path(temp_dir)
+                server.UPLOADS_DIR = Path(temp_dir) / "uploads"
+                server.STATE_FILE = Path(temp_dir) / "state.json"
+                receipt = server.create_receipt({"filename": "盒马268元.png", "data": "aGVsbG8=", "hint": "盒马268元"})
+
+                transaction, created = server.apply_receipt(receipt["id"])
+                repeated, repeated_created = server.apply_receipt(receipt["id"])
+                state = server._read_state()
+                linked_receipt = next(item for item in state["receipts"] if item["id"] == receipt["id"])
+
+                self.assertTrue(created)
+                self.assertFalse(repeated_created)
+                self.assertEqual(transaction["id"], repeated["id"])
+                self.assertEqual(linked_receipt["transactionId"], transaction["id"])
+                self.assertEqual(sum(item.get("receiptId") == receipt["id"] for item in state["transactions"]), 1)
+
+                self.assertTrue(server.delete_transaction(transaction["id"]))
+                refreshed_receipt = next(item for item in server._read_state()["receipts"] if item["id"] == receipt["id"])
+                self.assertNotIn("transactionId", refreshed_receipt)
+            finally:
+                server.DATA_DIR, server.UPLOADS_DIR, server.STATE_FILE = previous
+
     def test_transaction_edit_and_delete(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             previous = (server.DATA_DIR, server.UPLOADS_DIR, server.STATE_FILE)
