@@ -111,7 +111,7 @@ select.select-button { appearance: none; cursor: pointer; }
 .topbar-actions { display: flex; align-items: center; gap: 13px; }.month-chip { background: var(--paper); border: 1px solid var(--line); color: var(--muted); border-radius: 999px; padding: 8px 13px; font-size: 12px; }.icon-button, .mobile-menu { border: 1px solid var(--line); background: var(--paper); color: var(--muted); width: 34px; height: 34px; border-radius: 50%; }.user-avatar { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--ink); color: var(--cyan); font-weight: 800; }
 .mobile-menu { display: none; }
 .view { display: none; }.active-view { display: block; }
-.view-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 26px; margin-bottom: 26px; }.view-heading h2 { margin: 0; font-size: clamp(30px, 4vw, 46px); letter-spacing: -.055em; line-height: 1.08; }.subcopy { color: var(--muted); margin: 12px 0 0; font-size: 15px; }.compact-heading { margin-bottom: 24px; }
+.view-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 26px; margin-bottom: 26px; }.view-heading h2 { margin: 0; font-size: clamp(30px, 4vw, 46px); letter-spacing: -.055em; line-height: 1.08; }.subcopy { color: var(--muted); margin: 10px 0 0; font-size: 13px; line-height: 1.55; }.compact-heading { margin-bottom: 24px; }
 .primary-button, .upload-button { border: 0; border-radius: 10px; background: var(--ink); color: #fff; padding: 12px 17px; font-weight: 700; box-shadow: 0 9px 18px rgba(11, 16, 32, .15); }.primary-button span { color: var(--cyan); font-size: 18px; vertical-align: -1px; }
 .secondary-button { border: 1px solid var(--line); border-radius: 10px; background: var(--paper); color: var(--ink); padding: 11px 15px; font-weight: 700; }
 .secondary-button:hover { border-color: var(--violet); color: var(--violet); }
@@ -138,6 +138,7 @@ select.select-button { appearance: none; cursor: pointer; }
 .import-confirm-card { border-color: #cfcaff; background: #faf9ff; }
 .import-confirm-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 .import-confirm-heading h3 { margin: 0; overflow-wrap: anywhere; }
+.import-file-name { max-width: 230px; margin: 6px 0 0; overflow-wrap: anywhere; color: var(--faint); font-size: 10px; }
 .compact-import-metrics { gap: 7px; margin: 15px 0; }
 .compact-import-metrics div { padding: 10px; }
 .compact-import-metrics strong { font-size: 17px; }

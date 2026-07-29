@@ -315,8 +315,7 @@ function showView(viewName, updateLocation = true) {
   const targetView = viewName === "import" ? "chat" : viewName;
   $$(".view").forEach((view) => view.classList.toggle("active-view", view.id === `${targetView}-view`));
   $$(".nav-item").forEach((item) => item.classList.toggle("active", item.dataset.view === targetView));
-  const titles = { dashboard: "下午好，理财官", chat: "AI 财务助手", ledger: "智能账本", receipts: "图片凭证" };
-  $("#page-title").textContent = titles[targetView] || titles.dashboard;
+  renderUserIdentity();
   $(".sidebar").classList.remove("open");
   if (updateLocation && ["dashboard", "chat", "ledger", "receipts"].includes(targetView)) {
     window.history.replaceState({}, "", `#${targetView}`);
@@ -372,7 +371,7 @@ function renderLedgerSelector() {
 function renderChatDashboard() {
   const dashboard = appState.data?.dashboard;
   if (!dashboard) return;
-  $("#chat-dashboard-summary").innerHTML = `<p class="eyebrow">实时财务摘要</p><div class="mini-metrics"><div><span>消费</span><strong>${currency(dashboard.spend)}</strong></div><div><span>收入</span><strong>${currency(dashboard.income)}</strong></div><div><span>净现金流</span><strong>${currency(dashboard.net)}</strong></div></div><p class="mini-insight">${escapeHtml(dashboard.insight)}</p><button class="text-button" data-view-target="dashboard">打开完整 Dashboard →</button>`;
+  $("#chat-dashboard-summary").innerHTML = `<h3>财务摘要</h3><div class="mini-metrics"><div><span>消费</span><strong>${currency(dashboard.spend)}</strong></div><div><span>收入</span><strong>${currency(dashboard.income)}</strong></div><div><span>净现金流</span><strong>${currency(dashboard.net)}</strong></div></div><p class="mini-insight">${escapeHtml(dashboard.insight)}</p><button class="text-button" data-view-target="dashboard">查看财务总览 →</button>`;
   $("#chat-dashboard-summary [data-view-target]").addEventListener("click", () => showView("dashboard"));
 }
 

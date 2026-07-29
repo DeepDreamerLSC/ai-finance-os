@@ -71,9 +71,9 @@
         </div>
         <nav class="primary-nav" aria-label="主导航">
           <button class="nav-item active" data-view="dashboard"><span class="nav-dot cyan"></span>总览</button>
-          <button class="nav-item" data-view="chat"><span class="nav-dot violet"></span>AI 对话</button>
-          <button class="nav-item" data-view="ledger"><span class="nav-dot green"></span>智能账本</button>
-          <button class="nav-item" data-view="receipts"><span class="nav-dot amber"></span>图片凭证</button>
+          <button class="nav-item" data-view="chat"><span class="nav-dot violet"></span>AI 记账</button>
+          <button class="nav-item" data-view="ledger"><span class="nav-dot green"></span>账本</button>
+          <button class="nav-item" data-view="receipts"><span class="nav-dot amber"></span>凭证</button>
         </nav>
         <div class="sidebar-footer">
           <div class="privacy-badge"><span class="status-dot"></span><span id="current-user-name">已安全登录</span></div>
@@ -101,9 +101,8 @@
         <section id="dashboard-view" class="view active-view">
           <div class="view-heading">
             <div>
-              <p class="eyebrow">财务全景</p>
-              <h2>让数据开始解释自己。</h2>
-              <p class="subcopy">对话负责理解，账本负责沉淀，分析负责创造价值。</p>
+              <h2>财务总览</h2>
+              <p class="subcopy">查看本月收支、消费趋势和 AI 分析。</p>
             </div>
             <button class="primary-button" data-view-target="chat"><span>＋</span> 记一笔</button>
           </div>
@@ -128,22 +127,22 @@
 
           <div class="dashboard-grid">
             <article class="surface trend-surface">
-              <div class="surface-heading"><div><p class="eyebrow">趋势</p><h3>月度消费曲线</h3></div><span id="trend-period" class="muted-label">过去 6 个月</span></div>
+              <div class="surface-heading"><h3>消费趋势</h3><span id="trend-period" class="muted-label">过去 6 个月</span></div>
               <div id="trend-chart" class="trend-chart" aria-label="月度消费趋势"></div>
             </article>
             <article class="surface category-surface">
-              <div class="surface-heading"><div><p class="eyebrow">构成</p><h3>分类占比</h3></div><span class="muted-label">本月</span></div>
+              <div class="surface-heading"><h3>支出分类</h3><span class="muted-label">本月</span></div>
               <div class="donut-row"><div id="donut-chart" class="donut-chart"><span id="donut-percent">0%</span></div><div id="category-legend" class="category-legend"></div></div>
             </article>
           </div>
 
           <div class="dashboard-grid lower-grid">
             <article class="surface recent-surface">
-              <div class="surface-heading"><div><p class="eyebrow">最近动态</p><h3>交易流水</h3></div><button class="text-button" data-view-target="ledger">查看全部 →</button></div>
+              <div class="surface-heading"><h3>最近交易</h3><button class="text-button" data-view-target="ledger">查看全部 →</button></div>
               <div id="recent-list" class="recent-list"></div>
             </article>
             <article class="insight-card">
-              <div class="insight-topline"><span class="ai-orb small"><span></span></span><span>AI INSIGHT</span></div>
+              <div class="insight-topline"><span class="ai-orb small"><span></span></span><span>AI 分析</span></div>
               <h3 id="dashboard-insight">正在读取你的财务信号…</h3>
               <p>把变化讲清楚，下一步才会更容易。</p>
               <button class="ghost-button" data-view-target="chat">问问 AI 助手 <span>→</span></button>
@@ -152,7 +151,7 @@
         </section>
 
         <section id="chat-view" class="view">
-          <div class="view-heading compact-heading"><div><p class="eyebrow">AI 智能对话</p><h2>表达一句，或上传一份账单。</h2><p class="subcopy">自然语言、微信 Excel 与支付宝 CSV，都在同一个入口完成。</p></div></div>
+          <div class="view-heading compact-heading"><div><h2>AI 记账</h2><p class="subcopy">说一句话或上传账单，AI 自动整理并记账。</p></div></div>
           <div class="chat-layout">
             <article class="chat-panel surface dark-surface">
               <div class="chat-header"><div class="ai-orb"><span></span></div><div><strong>AI Finance Agent</strong><small>本地演示模式 · 可替换真实 Provider</small></div><span class="online-indicator">● 在线</span></div>
@@ -170,7 +169,7 @@
               <div id="parse-preview" class="aside-card preview-card hidden"></div>
               <div id="import-preview" class="aside-card import-confirm-card hidden">
                 <div class="import-confirm-heading">
-                  <div><p class="eyebrow">账单确认</p><h3 id="import-preview-title">等待解析</h3></div>
+                  <div><h3>账单确认</h3><p id="import-preview-title" class="import-file-name">等待解析</p></div>
                   <span id="import-provider-badge" class="provider-badge">账单</span>
                 </div>
                 <div class="import-metrics compact-import-metrics">
@@ -189,20 +188,20 @@
                 </div>
               </div>
               <div id="chat-dashboard-summary" class="aside-card"></div>
-              <div class="aside-card"><p class="eyebrow">统一入口</p><h3>表达、上传、确认、入账</h3><div class="flow-stack"><span>自然语言 / 账单文件</span><i>↓</i><span>AI 自动整理</span><i>↓</i><span>选择账本并确认</span></div></div>
+              <div class="aside-card"><h3>记账流程</h3><div class="flow-stack"><span>自然语言 / 账单文件</span><i>↓</i><span>AI 自动整理</span><i>↓</i><span>选择账本并确认</span></div></div>
             </aside>
           </div>
         </section>
 
         <section id="ledger-view" class="view">
-          <div class="view-heading"><div><p class="eyebrow">智能账本</p><h2>每一笔消费，都有上下文。</h2><p class="subcopy">支持多账本、自动分类、搜索和可编辑明细。</p></div><div class="heading-actions"><button class="secondary-button" id="manage-ledgers-button" type="button">管理账本</button><button class="secondary-button" id="new-ledger-button" type="button">新建账本</button><button class="primary-button" id="new-ledger-entry">＋ 新建记录</button></div></div>
+          <div class="view-heading"><div><h2>账本</h2><p class="subcopy">查看、搜索和修改每一笔交易。</p></div><div class="heading-actions"><button class="secondary-button" id="manage-ledgers-button" type="button">管理账本</button><button class="secondary-button" id="new-ledger-button" type="button">新建账本</button><button class="primary-button" id="new-ledger-entry">＋ 新建记录</button></div></div>
           <div class="ledger-toolbar surface"><div class="search-wrap"><span>⌕</span><input id="ledger-search" type="search" placeholder="搜索商户、备注或分类" /></div><div class="filter-tabs"><button class="filter-tab active" data-filter="all">全部</button><button class="filter-tab" data-filter="expense">支出</button><button class="filter-tab" data-filter="income">收入</button></div></div>
           <div class="surface ledger-table-wrap"><table class="ledger-table"><thead><tr><th>交易</th><th>分类</th><th>日期</th><th>来源</th><th class="align-right">金额</th><th class="align-right">操作</th></tr></thead><tbody id="ledger-table-body"></tbody></table><div id="ledger-empty" class="empty-state hidden">还没有匹配的交易。</div></div>
         </section>
 
         <section id="receipts-view" class="view">
-          <div class="view-heading"><div><p class="eyebrow">图片凭证</p><h2>让每一笔账都有凭证。</h2><p class="subcopy">上传小票、发票或支付截图，AI 会提取商户、金额和分类。</p></div></div>
-          <div class="receipts-layout"><article id="receipt-dropzone" class="surface upload-card"><div class="upload-icon">↑</div><h3>拖入一张凭证</h3><p>支持 PNG、JPG、WEBP，单张不超过 8MB。</p><label class="upload-button" for="receipt-file">选择图片<input id="receipt-file" type="file" accept="image/*" hidden /></label><div id="upload-progress" class="upload-progress hidden" aria-label="上传进度"><span id="upload-progress-bar"></span></div><div id="upload-status" class="upload-status">图片会保存到当前容器的数据卷中。</div></article><article class="surface receipt-results"><div class="surface-heading"><div><p class="eyebrow">历史财务档案</p><h3>原始凭证与交易记录</h3></div><span class="muted-label">可追溯</span></div><div id="receipt-list" class="receipt-list"></div></article></div>
+          <div class="view-heading"><div><h2>凭证</h2><p class="subcopy">上传小票、发票或支付截图，保留原始记录。</p></div></div>
+          <div class="receipts-layout"><article id="receipt-dropzone" class="surface upload-card"><div class="upload-icon">↑</div><h3>上传凭证</h3><p>支持 PNG、JPG、WEBP，单张不超过 8MB。</p><label class="upload-button" for="receipt-file">选择图片<input id="receipt-file" type="file" accept="image/*" hidden /></label><div id="upload-progress" class="upload-progress hidden" aria-label="上传进度"><span id="upload-progress-bar"></span></div><div id="upload-status" class="upload-status">图片会保存到当前容器的数据卷中。</div></article><article class="surface receipt-results"><div class="surface-heading"><h3>凭证记录</h3><span class="muted-label">可追溯</span></div><div id="receipt-list" class="receipt-list"></div></article></div>
         </section>
       </main>
     </div>

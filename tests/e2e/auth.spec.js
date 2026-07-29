@@ -43,6 +43,11 @@ test("2 登录后恢复原财务视图", async ({ page }, testInfo) => {
   await login(page, phoneFor(testInfo));
   await expect(page.locator("#ledger-view")).toBeVisible();
   await expect(page).toHaveURL(/#ledger$/);
+  await expect(page.locator("#dashboard-view .view-heading h2")).toHaveText("财务总览");
+  await expect(page.locator("#chat-view .view-heading h2")).toHaveText("AI 记账");
+  await expect(page.locator("#ledger-view .view-heading h2")).toHaveText("账本");
+  await expect(page.locator("#receipts-view .view-heading h2")).toHaveText("凭证");
+  await expect(page.locator(".view-heading .eyebrow")).toHaveCount(0);
 });
 
 test("3 无效长期会话返回登录页", async ({ page, context }, testInfo) => {
