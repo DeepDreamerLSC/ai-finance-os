@@ -73,7 +73,6 @@
           <button class="nav-item active" data-view="dashboard"><span class="nav-dot cyan"></span>总览</button>
           <button class="nav-item" data-view="chat"><span class="nav-dot violet"></span>AI 对话</button>
           <button class="nav-item" data-view="ledger"><span class="nav-dot green"></span>智能账本</button>
-          <button class="nav-item" data-view="import"><span class="nav-dot cyan"></span>账单导入</button>
           <button class="nav-item" data-view="receipts"><span class="nav-dot amber"></span>图片凭证</button>
         </nav>
         <div class="sidebar-footer">
@@ -153,19 +152,43 @@
         </section>
 
         <section id="chat-view" class="view">
-          <div class="view-heading compact-heading"><div><p class="eyebrow">AI 智能对话</p><h2>让用户表达，而不是填写。</h2><p class="subcopy">一句话完成记录，所有字段都可编辑、可追溯。</p></div></div>
+          <div class="view-heading compact-heading"><div><p class="eyebrow">AI 智能对话</p><h2>表达一句，或上传一份账单。</h2><p class="subcopy">自然语言、微信 Excel 与支付宝 CSV，都在同一个入口完成。</p></div></div>
           <div class="chat-layout">
             <article class="chat-panel surface dark-surface">
               <div class="chat-header"><div class="ai-orb"><span></span></div><div><strong>AI Finance Agent</strong><small>本地演示模式 · 可替换真实 Provider</small></div><span class="online-indicator">● 在线</span></div>
               <div id="chat-messages" class="chat-messages"></div>
               <div class="quick-prompts"><button data-prompt="刚刚停车112元，帮我记一下。">停车 112 元</button><button data-prompt="创建2026账本，把停车费112元记录进去，再把4月份销冠奖金500元放进去。">创建账本 + 两笔交易</button><button data-prompt="为什么这个月花这么多？">分析本月支出</button></div>
-              <form id="chat-form" class="chat-composer"><textarea id="chat-input" rows="2" placeholder="说一句你的财务指令…"></textarea><button class="voice-button" id="voice-button" type="button" aria-label="语音输入" title="语音输入">◉</button><button class="send-button" type="submit" aria-label="发送">↑</button></form>
-              <p class="composer-hint">AI 会先生成结构化预览，确认后才会写入账本。</p>
+              <form id="chat-form" class="chat-composer">
+                <label class="composer-file-button" for="bill-file" aria-label="上传 Excel 或 CSV 账单" title="上传 Excel 或 CSV 账单">＋<input id="bill-file" type="file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" hidden /></label>
+                <textarea id="chat-input" rows="2" placeholder="说一句财务指令，或上传一份账单…"></textarea>
+                <button class="voice-button" id="voice-button" type="button" aria-label="语音输入" title="语音输入">◉</button>
+                <button class="send-button" type="submit" aria-label="发送">↑</button>
+              </form>
+              <p id="bill-upload-status" class="composer-hint">支持 Excel（.xlsx）与 CSV，AI 解析后会在右侧等待确认。</p>
             </article>
             <aside class="chat-aside">
-              <div class="aside-card"><p class="eyebrow">可执行指令</p><h3>从自然语言到结构化记录</h3><div class="flow-stack"><span>用户表达</span><i>↓</i><span>AI 理解</span><i>↓</i><span>自动整理</span><i>↓</i><span>可确认账单</span></div></div>
-              <div id="chat-dashboard-summary" class="aside-card"></div>
               <div id="parse-preview" class="aside-card preview-card hidden"></div>
+              <div id="import-preview" class="aside-card import-confirm-card hidden">
+                <div class="import-confirm-heading">
+                  <div><p class="eyebrow">账单确认</p><h3 id="import-preview-title">等待解析</h3></div>
+                  <span id="import-provider-badge" class="provider-badge">账单</span>
+                </div>
+                <div class="import-metrics compact-import-metrics">
+                  <div><span>可导入</span><strong id="import-count">0</strong></div>
+                  <div><span>已存在</span><strong id="import-duplicate-count">0</strong></div>
+                  <div><span>已跳过</span><strong id="import-skipped-count">0</strong></div>
+                </div>
+                <label class="import-ledger-field" for="import-ledger-select"><span>写入账本</span><select id="import-ledger-select" class="form-select" aria-label="选择导入目标账本"></select></label>
+                <button id="import-create-ledger" class="text-button import-create-button" type="button">＋ 创建新账本</button>
+                <label class="import-select-all-row"><span><input id="import-select-all" type="checkbox" checked aria-label="全选可导入交易" /> 全选可导入交易</span><small>重复订单自动跳过</small></label>
+                <div id="import-table-body" class="import-confirm-list"></div>
+                <div class="import-actions import-confirm-actions">
+                  <span id="import-selection-summary">尚未选择交易</span>
+                  <button id="commit-import" class="primary-button" type="button">确认导入</button>
+                </div>
+              </div>
+              <div id="chat-dashboard-summary" class="aside-card"></div>
+              <div class="aside-card"><p class="eyebrow">统一入口</p><h3>表达、上传、确认、入账</h3><div class="flow-stack"><span>自然语言 / 账单文件</span><i>↓</i><span>AI 自动整理</span><i>↓</i><span>选择账本并确认</span></div></div>
             </aside>
           </div>
         </section>
@@ -174,51 +197,6 @@
           <div class="view-heading"><div><p class="eyebrow">智能账本</p><h2>每一笔消费，都有上下文。</h2><p class="subcopy">支持多账本、自动分类、搜索和可编辑明细。</p></div><div class="heading-actions"><button class="secondary-button" id="new-ledger-button" type="button">新建账本</button><button class="primary-button" id="new-ledger-entry">＋ 新建记录</button></div></div>
           <div class="ledger-toolbar surface"><div class="search-wrap"><span>⌕</span><input id="ledger-search" type="search" placeholder="搜索商户、备注或分类" /></div><div class="filter-tabs"><button class="filter-tab active" data-filter="all">全部</button><button class="filter-tab" data-filter="expense">支出</button><button class="filter-tab" data-filter="income">收入</button></div></div>
           <div class="surface ledger-table-wrap"><table class="ledger-table"><thead><tr><th>交易</th><th>分类</th><th>日期</th><th>来源</th><th class="align-right">金额</th><th class="align-right">操作</th></tr></thead><tbody id="ledger-table-body"></tbody></table><div id="ledger-empty" class="empty-state hidden">还没有匹配的交易。</div></div>
-        </section>
-
-        <section id="import-view" class="view">
-          <div class="view-heading"><div><p class="eyebrow">账单导入</p><h2>把历史流水，一次带回来。</h2><p class="subcopy">支持微信支付 XLSX 与支付宝 CSV；预览、去重后再写入指定账本。</p></div></div>
-          <div class="import-grid">
-            <article id="bill-dropzone" class="surface bill-upload-card">
-              <div class="upload-icon">⇧</div>
-              <div>
-                <p class="eyebrow">官方账单文件</p>
-                <h3>拖入微信或支付宝账单</h3>
-                <p>支持 .xlsx、.csv，单个文件不超过 12MB。</p>
-              </div>
-              <label class="upload-button" for="bill-file">选择账单<input id="bill-file" type="file" accept=".xlsx,.csv" hidden /></label>
-              <p id="bill-upload-status" class="upload-status">文件只用于解析交易，不保存原始账单。</p>
-            </article>
-            <article class="surface import-target-card">
-              <p class="eyebrow">导入目标</p>
-              <h3>选择一个账本</h3>
-              <p>导入记录会进入该账本，可随时切换或新建。</p>
-              <select id="import-ledger-select" class="form-select" aria-label="选择导入目标账本"></select>
-              <button id="import-create-ledger" class="secondary-button" type="button">＋ 创建新账本</button>
-              <div class="import-safety"><span>✓</span> 重复订单号会自动跳过</div>
-            </article>
-          </div>
-          <article id="import-preview" class="surface import-preview hidden">
-            <div class="surface-heading">
-              <div><p class="eyebrow">导入预览</p><h3 id="import-preview-title">等待解析</h3></div>
-              <span id="import-provider-badge" class="provider-badge">账单</span>
-            </div>
-            <div class="import-metrics">
-              <div><span>可导入</span><strong id="import-count">0</strong></div>
-              <div><span>已存在</span><strong id="import-duplicate-count">0</strong></div>
-              <div><span>已跳过</span><strong id="import-skipped-count">0</strong></div>
-            </div>
-            <div class="import-table-wrap">
-              <table class="import-table">
-                <thead><tr><th><input id="import-select-all" type="checkbox" checked aria-label="全选可导入交易" /></th><th>交易</th><th>分类</th><th>日期</th><th class="align-right">金额</th><th>状态</th></tr></thead>
-                <tbody id="import-table-body"></tbody>
-              </table>
-            </div>
-            <div class="import-actions">
-              <span id="import-selection-summary">尚未选择交易</span>
-              <button id="commit-import" class="primary-button" type="button">确认导入</button>
-            </div>
-          </article>
         </section>
 
         <section id="receipts-view" class="view">

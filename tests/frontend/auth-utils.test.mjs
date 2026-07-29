@@ -31,6 +31,6 @@ test("rejects open redirects and unsafe path delimiters", () => {
 
 test("restores only known application views", () => {
   assert.equal(viewFromLocation({ hash: "#receipts" }), "receipts");
-  assert.equal(viewFromLocation({ hash: "#import" }), "import");
+  assert.equal(viewFromLocation({ hash: "#import" }), "chat");
   assert.equal(viewFromLocation({ hash: "#external" }), "dashboard");
 });

@@ -123,37 +123,41 @@ select.select-button { appearance: none; cursor: pointer; }
 .lower-grid { align-items: stretch; }.recent-list { display: grid; gap: 4px; margin-top: 15px; }.recent-row { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 11px; align-items: center; padding: 11px 0; border-bottom: 1px solid var(--line); }.recent-row:last-child { border-bottom: 0; }.transaction-icon { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; font-size: 11px; font-weight: 800; }.transaction-icon.expense { background: var(--cyan-soft); color: #199bb1; }.transaction-icon.income { background: var(--green-soft); color: #159866; }.recent-main strong, .recent-amount strong { display: block; font-size: 13px; }.recent-main small { color: var(--faint); display: block; margin-top: 4px; font-size: 11px; }.recent-amount { text-align: right; }.recent-amount strong.expense { color: var(--ink); }.recent-amount strong.income { color: var(--green); }.recent-amount small { color: var(--faint); font-size: 10px; }
 .text-button, .ghost-button { border: 0; background: transparent; color: var(--violet); font-weight: 700; font-size: 12px; }.insight-card { min-height: 270px; border-radius: 18px; padding: 24px; background: #0d1727; color: #fff; box-shadow: var(--shadow); }.insight-topline { display: flex; gap: 9px; align-items: center; color: var(--cyan); font-size: 10px; font-weight: 800; letter-spacing: .13em; }.ai-orb.small { width: 25px; height: 25px; box-shadow: none; }.ai-orb.small span { width: 8px; height: 8px; }.insight-card h3 { margin: 35px 0 11px; font-size: 24px; line-height: 1.3; letter-spacing: -.03em; }.insight-card p { color: #94a2b9; font-size: 13px; }.ghost-button { margin-top: 25px; color: var(--cyan); padding: 0; }
 
-.chat-layout { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(260px, .65fr); gap: 18px; }.dark-surface { background: #080e1a; border-color: #22304a; color: #fff; }.chat-panel { min-height: 560px; padding: 24px; display: flex; flex-direction: column; }.chat-header { display: flex; align-items: center; gap: 12px; padding-bottom: 18px; border-bottom: 1px solid #1d2a40; }.chat-header strong { display: block; font-size: 15px; }.chat-header small { display: block; color: #71809b; margin-top: 4px; font-size: 11px; }.online-indicator { margin-left: auto; color: var(--green); font-size: 11px; }.chat-messages { flex: 1; display: grid; gap: 14px; align-content: start; padding: 22px 6px; overflow: auto; }.message { max-width: 78%; padding: 13px 15px; border-radius: 16px; line-height: 1.55; font-size: 14px; white-space: pre-line; }.message.ai { background: #141f32; color: #cbd5e5; border-top-left-radius: 5px; }.message.user { justify-self: end; background: #254366; color: #fff; border-top-right-radius: 5px; }.message-meta { color: #75849c; font-size: 10px; margin-top: 6px; }.quick-prompts { display: flex; gap: 8px; flex-wrap: wrap; padding-bottom: 12px; }.quick-prompts button { border: 1px solid #2b3b55; background: #111b2c; color: #aebbd0; border-radius: 999px; padding: 7px 10px; font-size: 11px; }.chat-composer { display: flex; gap: 10px; align-items: end; }.chat-composer textarea { flex: 1; resize: vertical; border: 1px solid #2a3b56; background: #0e1828; color: #fff; border-radius: 13px; padding: 12px; outline: none; }.chat-composer textarea:focus { border-color: var(--cyan); }.send-button { width: 42px; height: 42px; border-radius: 12px; border: 0; background: var(--cyan); color: #08111f; font-weight: 900; font-size: 18px; }.composer-hint { color: #6e7c94; font-size: 11px; margin: 10px 0 0; }.chat-aside { display: grid; gap: 18px; align-content: start; }.aside-card { padding: 22px; background: var(--paper); border: 1px solid var(--line); border-radius: 18px; }.aside-card h3 { margin: 0 0 20px; font-size: 19px; line-height: 1.35; }.flow-stack { display: grid; gap: 8px; text-align: center; }.flow-stack span { background: var(--canvas); padding: 10px; border-radius: 9px; color: var(--ink); font-size: 13px; font-weight: 700; }.flow-stack i { color: var(--violet); font-style: normal; }.preview-card { border-color: #cfcaff; background: #faf9ff; }.hidden { display: none !important; }.preview-card h3 { margin-bottom: 12px; }.preview-line { display: flex; justify-content: space-between; gap: 15px; padding: 8px 0; border-bottom: 1px solid #e5e2ff; font-size: 12px; }.preview-line span { color: var(--muted); }.preview-actions { display: flex; gap: 8px; margin-top: 15px; }.preview-actions button { flex: 1; border: 0; border-radius: 9px; padding: 9px; font-size: 12px; font-weight: 700; }.confirm-button { background: var(--ink); color: #fff; }.cancel-button { background: #eeecff; color: var(--violet); }
+.chat-layout { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(300px, .65fr); gap: 18px; align-items: start; }.dark-surface { background: #080e1a; border-color: #22304a; color: #fff; }.chat-panel { min-height: 560px; padding: 24px; display: flex; flex-direction: column; }.chat-header { display: flex; align-items: center; gap: 12px; padding-bottom: 18px; border-bottom: 1px solid #1d2a40; }.chat-header strong { display: block; font-size: 15px; }.chat-header small { display: block; color: #71809b; margin-top: 4px; font-size: 11px; }.online-indicator { margin-left: auto; color: var(--green); font-size: 11px; }.chat-messages { flex: 1; display: grid; gap: 14px; align-content: start; padding: 22px 6px; overflow: auto; }.message { max-width: 78%; padding: 13px 15px; border-radius: 16px; line-height: 1.55; font-size: 14px; white-space: pre-line; }.message.ai { background: #141f32; color: #cbd5e5; border-top-left-radius: 5px; }.message.user { justify-self: end; background: #254366; color: #fff; border-top-right-radius: 5px; }.message-meta { color: #75849c; font-size: 10px; margin-top: 6px; }.quick-prompts { display: flex; gap: 8px; flex-wrap: wrap; padding-bottom: 12px; }.quick-prompts button { border: 1px solid #2b3b55; background: #111b2c; color: #aebbd0; border-radius: 999px; padding: 7px 10px; font-size: 11px; }.chat-composer { display: flex; gap: 10px; align-items: end; }.chat-composer textarea { flex: 1; resize: vertical; border: 1px solid #2a3b56; background: #0e1828; color: #fff; border-radius: 13px; padding: 12px; outline: none; }.chat-composer textarea:focus { border-color: var(--cyan); }.composer-file-button { width: 42px; height: 42px; flex: 0 0 42px; display: grid; place-items: center; border: 1px solid #2a3b56; border-radius: 12px; background: #111b2c; color: #91a2bc; cursor: pointer; font-size: 23px; font-weight: 400; }.composer-file-button:hover { border-color: var(--cyan); color: var(--cyan); }.send-button { width: 42px; height: 42px; border-radius: 12px; border: 0; background: var(--cyan); color: #08111f; font-weight: 900; font-size: 18px; }.composer-hint { color: #6e7c94; font-size: 11px; margin: 10px 0 0; }.chat-aside { display: grid; gap: 18px; align-content: start; min-width: 0; }.aside-card { padding: 22px; background: var(--paper); border: 1px solid var(--line); border-radius: 18px; }.aside-card h3 { margin: 0 0 20px; font-size: 19px; line-height: 1.35; }.flow-stack { display: grid; gap: 8px; text-align: center; }.flow-stack span { background: var(--canvas); padding: 10px; border-radius: 9px; color: var(--ink); font-size: 13px; font-weight: 700; }.flow-stack i { color: var(--violet); font-style: normal; }.preview-card { border-color: #cfcaff; background: #faf9ff; }.hidden { display: none !important; }.preview-card h3 { margin-bottom: 12px; }.preview-line { display: flex; justify-content: space-between; gap: 15px; padding: 8px 0; border-bottom: 1px solid #e5e2ff; font-size: 12px; }.preview-line span { color: var(--muted); }.preview-actions { display: flex; gap: 8px; margin-top: 15px; }.preview-actions button { flex: 1; border: 0; border-radius: 9px; padding: 9px; font-size: 12px; font-weight: 700; }.confirm-button { background: var(--ink); color: #fff; }.cancel-button { background: #eeecff; color: var(--violet); }
 .mini-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 16px 0; }.mini-metrics div { padding: 10px; border-radius: 10px; background: var(--canvas); }.mini-metrics span { display: block; color: var(--muted); font-size: 10px; }.mini-metrics strong { display: block; margin-top: 6px; font-size: 13px; letter-spacing: -.03em; }.mini-insight { color: var(--muted); font-size: 12px; line-height: 1.55; margin: 0 0 14px; }
 
 .ledger-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px; margin-bottom: 14px; }.search-wrap { flex: 1; display: flex; gap: 8px; align-items: center; color: var(--faint); padding: 0 8px; }.search-wrap input { border: 0; outline: 0; background: transparent; width: 100%; color: var(--ink); font-size: 13px; }.filter-tabs { display: flex; gap: 4px; }.filter-tab { border: 0; background: transparent; color: var(--muted); border-radius: 8px; padding: 8px 11px; font-size: 12px; }.filter-tab.active { background: var(--ink); color: #fff; }.ledger-table-wrap { overflow: hidden; }.ledger-table { border-collapse: collapse; width: 100%; font-size: 13px; }.ledger-table th { text-align: left; color: var(--faint); font-size: 11px; font-weight: 700; padding: 16px 18px; background: #fafbfc; }.ledger-table td { padding: 15px 18px; border-top: 1px solid var(--line); }.ledger-table .align-right { text-align: right; }.table-transaction { display: flex; align-items: center; gap: 10px; }.table-transaction strong { display: block; }.table-transaction small { color: var(--faint); font-size: 11px; }.category-tag { display: inline-flex; border-radius: 999px; padding: 4px 8px; background: var(--canvas); color: var(--muted); font-size: 11px; }.amount-expense { color: var(--ink); font-weight: 800; }.amount-income { color: var(--green); font-weight: 800; }.empty-state { padding: 48px; text-align: center; color: var(--muted); }
 
-.import-grid { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(280px, .65fr); gap: 18px; margin-bottom: 18px; }
-.bill-upload-card { min-height: 260px; padding: 28px; border-style: dashed; display: grid; grid-template-columns: 66px minmax(0, 1fr) auto; gap: 22px; align-items: center; }
-.bill-upload-card.drop-active { border-color: var(--violet); background: var(--violet-soft); }
-.bill-upload-card h3, .import-target-card h3 { margin: 0 0 8px; font-size: 22px; letter-spacing: -.03em; }
-.bill-upload-card p, .import-target-card p { color: var(--muted); font-size: 13px; line-height: 1.6; }
-.bill-upload-card .upload-status { grid-column: 2 / -1; margin: -6px 0 0; }
-.import-target-card { padding: 28px; }
 .form-select { width: 100%; min-height: 46px; margin: 16px 0 10px; border: 1px solid var(--line); border-radius: 11px; background: #fbfcfd; color: var(--ink); padding: 0 13px; }
-.import-target-card .secondary-button { width: 100%; }
-.import-safety { margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
-.import-safety span { color: var(--green); margin-right: 6px; }
-.import-preview { padding: 24px; }
 .provider-badge { border-radius: 999px; padding: 6px 10px; background: var(--cyan-soft); color: #158da2; font-size: 11px; font-weight: 800; }
 .import-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 20px 0; }
 .import-metrics div { padding: 15px; border-radius: 12px; background: var(--canvas); }
 .import-metrics span { color: var(--muted); font-size: 11px; }
 .import-metrics strong { display: block; margin-top: 7px; font-size: 22px; }
-.import-table-wrap { max-height: 440px; overflow: auto; border: 1px solid var(--line); border-radius: 12px; }
-.import-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-.import-table th { position: sticky; top: 0; z-index: 1; padding: 12px 13px; text-align: left; color: var(--faint); background: #fafbfc; border-bottom: 1px solid var(--line); }
-.import-table td { padding: 12px 13px; border-top: 1px solid var(--line); vertical-align: middle; }
-.import-table tr.is-duplicate { opacity: .52; background: #fafbfc; }
-.import-table .transaction-cell strong { display: block; max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.import-table .transaction-cell small { display: block; margin-top: 4px; color: var(--faint); }
-.import-table .align-right { text-align: right; white-space: nowrap; }
 .import-actions { display: flex; justify-content: space-between; align-items: center; gap: 18px; margin-top: 18px; color: var(--muted); font-size: 12px; }
+.import-confirm-card { border-color: #cfcaff; background: #faf9ff; }
+.import-confirm-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.import-confirm-heading h3 { margin: 0; overflow-wrap: anywhere; }
+.compact-import-metrics { gap: 7px; margin: 15px 0; }
+.compact-import-metrics div { padding: 10px; }
+.compact-import-metrics strong { font-size: 17px; }
+.import-ledger-field { display: grid; gap: 7px; }
+.import-ledger-field > span { color: var(--muted); font-size: 11px; font-weight: 700; }
+.import-ledger-field .form-select { margin: 0; min-height: 42px; }
+.import-create-button { justify-self: start; margin-top: 8px; padding: 0; }
+.import-select-all-row { display: flex; justify-content: space-between; gap: 10px; align-items: center; margin: 16px 0 8px; color: var(--muted); font-size: 11px; }
+.import-select-all-row span { display: flex; align-items: center; gap: 6px; }
+.import-select-all-row small { color: var(--faint); }
+.import-confirm-list { display: grid; gap: 7px; max-height: 310px; overflow: auto; padding-right: 3px; }
+.import-confirm-row { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 9px; align-items: center; padding: 10px; border: 1px solid var(--line); border-radius: 11px; background: var(--paper); cursor: pointer; }
+.import-confirm-row.is-duplicate { opacity: .5; cursor: default; }
+.import-confirm-main { min-width: 0; }
+.import-confirm-main strong, .import-confirm-main small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.import-confirm-main strong { font-size: 12px; }
+.import-confirm-main small { margin-top: 4px; color: var(--faint); font-size: 10px; }
+.import-confirm-row > strong { white-space: nowrap; font-size: 12px; }
+.import-confirm-actions { align-items: stretch; flex-direction: column; gap: 9px; }
+.import-confirm-actions .primary-button { width: 100%; }
 .compact-modal { width: min(100%, 430px); }
 .modal-field { display: grid; gap: 9px; }
 .modal-field span { color: var(--muted); font-size: 12px; font-weight: 700; }
@@ -198,41 +202,6 @@ select.select-button { appearance: none; cursor: pointer; }
   .trend-chart { gap: 7px; height: 190px; }
   .donut-row { justify-content: space-around; }
   .ledger-toolbar { align-items: stretch; flex-direction: column; }
-  .import-grid { grid-template-columns: 1fr; }
-  .bill-upload-card { grid-template-columns: 58px minmax(0, 1fr); padding: 22px; }
-  .bill-upload-card .upload-button { grid-column: 1 / -1; text-align: center; }
-  .bill-upload-card .upload-status { grid-column: 1 / -1; }
-  .import-metrics { grid-template-columns: repeat(3, 1fr); }
-  .import-preview { padding: 17px; }
-  .import-table-wrap { max-height: none; overflow: visible; border: 0; }
-  .import-table { min-width: 0; display: block; }
-  .import-table thead { display: block; margin-bottom: 9px; }
-  .import-table thead tr { display: grid; grid-template-columns: 28px 1fr; align-items: center; padding: 9px 12px; border: 1px solid var(--line); border-radius: 10px; background: #fafbfc; }
-  .import-table thead th { position: static; padding: 0; border: 0; background: transparent; }
-  .import-table thead th:nth-child(n+3) { display: none; }
-  .import-table tbody { display: grid; gap: 9px; }
-  .import-table tbody tr {
-    display: grid;
-    grid-template-columns: 28px minmax(0, 1fr) auto;
-    grid-template-areas:
-      "select transaction amount"
-      "select category date"
-      "select status status";
-    gap: 8px 10px;
-    padding: 13px 12px;
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    background: var(--paper);
-  }
-  .import-table tbody td { padding: 0; border: 0; }
-  .import-table tbody td:nth-child(1) { grid-area: select; padding-top: 2px; }
-  .import-table tbody td:nth-child(2) { grid-area: transaction; }
-  .import-table tbody td:nth-child(3) { grid-area: category; }
-  .import-table tbody td:nth-child(4) { grid-area: date; color: var(--muted); font-size: 11px; }
-  .import-table tbody td:nth-child(5) { grid-area: amount; }
-  .import-table tbody td:nth-child(6) { grid-area: status; color: var(--faint); font-size: 10px; }
-  .import-table .transaction-cell strong { max-width: 190px; }
-  .import-actions { align-items: stretch; flex-direction: column; }
   .filter-tabs { overflow: auto; }
   .ledger-table-wrap { overflow: visible; border: 0; background: transparent; box-shadow: none; }
   .ledger-table { display: block; width: 100%; min-width: 0; }

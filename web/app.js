@@ -308,13 +308,14 @@ function notify(message) {
 }
 
 function showView(viewName, updateLocation = true) {
-  $$(".view").forEach((view) => view.classList.toggle("active-view", view.id === `${viewName}-view`));
-  $$(".nav-item").forEach((item) => item.classList.toggle("active", item.dataset.view === viewName));
-  const titles = { dashboard: "下午好，理财官", chat: "AI 财务助手", ledger: "智能账本", import: "账单导入", receipts: "图片凭证" };
-  $("#page-title").textContent = titles[viewName] || titles.dashboard;
+  const targetView = viewName === "import" ? "chat" : viewName;
+  $$(".view").forEach((view) => view.classList.toggle("active-view", view.id === `${targetView}-view`));
+  $$(".nav-item").forEach((item) => item.classList.toggle("active", item.dataset.view === targetView));
+  const titles = { dashboard: "下午好，理财官", chat: "AI 财务助手", ledger: "智能账本", receipts: "图片凭证" };
+  $("#page-title").textContent = titles[targetView] || titles.dashboard;
   $(".sidebar").classList.remove("open");
-  if (updateLocation && ["dashboard", "chat", "ledger", "import", "receipts"].includes(viewName)) {
-    window.history.replaceState({}, "", `#${viewName}`);
+  if (updateLocation && ["dashboard", "chat", "ledger", "receipts"].includes(targetView)) {
+    window.history.replaceState({}, "", `#${targetView}`);
   }
 }
 
@@ -556,6 +557,10 @@ async function handleChat(event) {
   const value = input.value.trim();
   if (!value) return;
   input.value = "";
+  appState.importPreview = null;
+  $("#import-preview").classList.add("hidden");
+  $("#bill-file").value = "";
+  $("#bill-upload-status").textContent = "支持 Excel（.xlsx）与 CSV，AI 解析后会在右侧等待确认。";
   addMessage(value, "user");
   try {
     if (/为什么|花这么多|支出/.test(value)) {
@@ -662,14 +667,14 @@ function renderImportPreview(preview) {
   $("#import-duplicate-count").textContent = preview.duplicateCount;
   $("#import-skipped-count").textContent = preview.skippedCount;
   $("#import-table-body").innerHTML = preview.transactions.map((tx, index) => `
-    <tr class="${tx.duplicate ? "is-duplicate" : ""}">
-      <td><input type="checkbox" data-import-index="${index}" ${tx.duplicate ? "disabled" : "checked"} aria-label="选择 ${escapeHtml(tx.note)}" /></td>
-      <td class="transaction-cell"><strong>${escapeHtml(tx.note)}</strong><small>${escapeHtml(tx.paymentMethod || tx.source)}</small></td>
-      <td><span class="category-tag">${escapeHtml(tx.category)}</span></td>
-      <td>${escapeHtml(tx.date)}</td>
-      <td class="align-right ${tx.type === "income" ? "amount-income" : "amount-expense"}">${tx.type === "income" ? "+" : "−"}${exactCurrency(tx.amount)}</td>
-      <td>${tx.duplicate ? "已存在" : escapeHtml(tx.status || "可导入")}</td>
-    </tr>
+    <label class="import-confirm-row ${tx.duplicate ? "is-duplicate" : ""}">
+      <input type="checkbox" data-import-index="${index}" ${tx.duplicate ? "disabled" : "checked"} aria-label="选择 ${escapeHtml(tx.note)}" />
+      <span class="import-confirm-main">
+        <strong>${escapeHtml(tx.note)}</strong>
+        <small>${escapeHtml(tx.category)} · ${escapeHtml(tx.date)}${tx.duplicate ? " · 已存在" : ""}</small>
+      </span>
+      <strong class="${tx.type === "income" ? "amount-income" : "amount-expense"}">${tx.type === "income" ? "+" : "−"}${exactCurrency(tx.amount)}</strong>
+    </label>
   `).join("");
   $("#import-select-all").checked = preview.importableCount > 0;
   renderImportSelectionSummary();
@@ -678,24 +683,33 @@ function renderImportPreview(preview) {
 async function processBillFile(file) {
   if (!file) return;
   if (!/\.(xlsx|csv)$/i.test(file.name)) {
-    notify("请选择微信 XLSX 或支付宝 CSV 文件");
+    $("#bill-file").value = "";
+    notify("仅支持 Excel（.xlsx）或 CSV 文件");
     return;
   }
   if (file.size > 12 * 1024 * 1024) {
+    $("#bill-file").value = "";
     notify("账单文件不能超过 12MB");
     return;
   }
   const status = $("#bill-upload-status");
+  appState.pendingParse = null;
+  $("#parse-preview").classList.add("hidden");
+  $("#import-preview").classList.add("hidden");
+  addMessage(`上传账单：${file.name}`, "user");
   status.textContent = "正在识别账单格式、退款与重复记录…";
   const formData = new FormData();
   formData.append("file", file);
   try {
     const preview = await api("/api/imports/preview", { method: "POST", body: formData });
     renderImportPreview(preview);
-    status.textContent = `已识别 ${preview.totalRows} 笔原始记录，请确认后导入。`;
+    status.textContent = `已识别 ${preview.totalRows} 笔原始记录，请在右侧选择账本并确认。`;
+    addMessage(`已识别 ${preview.importableCount} 笔可导入记录，请在右侧选择账本并确认。`);
     $("#import-preview").scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (error) {
+    $("#bill-file").value = "";
     status.textContent = `解析失败：${error.message}`;
+    addMessage(`账单解析失败：${error.message}`);
     notify(`账单解析失败：${error.message}`);
   }
 }
@@ -732,6 +746,7 @@ async function commitBillImport() {
     renderChatDashboard();
     renderLedger();
     renderReceipts();
+    addMessage(`已导入 ${result.importedCount} 笔到 ${selectedLedger()?.name || "当前账本"}。`);
     notify(`已导入 ${result.importedCount} 笔到 ${selectedLedger()?.name || "当前账本"}`);
   } catch (error) {
     notify(`导入失败：${error.message}`);
@@ -779,10 +794,6 @@ function wireEvents() {
     notify,
   });
   $("#bill-file").addEventListener("change", (event) => processBillFile(event.target.files?.[0]));
-  const billDropzone = $("#bill-dropzone");
-  ["dragenter", "dragover"].forEach((eventName) => billDropzone.addEventListener(eventName, (event) => { event.preventDefault(); billDropzone.classList.add("drop-active"); }));
-  ["dragleave", "drop"].forEach((eventName) => billDropzone.addEventListener(eventName, (event) => { event.preventDefault(); billDropzone.classList.remove("drop-active"); }));
-  billDropzone.addEventListener("drop", (event) => processBillFile(event.dataTransfer.files?.[0]));
   $("#import-select-all").addEventListener("change", (event) => {
     $$("#import-table-body input[data-import-index]:not(:disabled)").forEach((input) => { input.checked = event.target.checked; });
     renderImportSelectionSummary();

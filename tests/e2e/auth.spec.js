@@ -85,17 +85,12 @@ test("4 不同用户的账本内容互不可见", async ({ browser }, testInfo) 
   await contextB.close();
 });
 
-test("5 可以创建账本并导入支付宝账单且自动去重", async ({ page }, testInfo) => {
-  await page.goto("/#import");
+test("5 AI 对话中可以选择账本、导入支付宝账单并自动去重", async ({ page }, testInfo) => {
+  await page.goto("/#chat");
   await login(page, phoneFor(testInfo));
-  await expect(page.locator("#import-view")).toBeVisible();
-
-  await page.locator("#import-create-ledger").click();
-  await page.locator("#ledger-name-input").fill("支付宝导入测试");
-  await page.locator("#ledger-form").getByRole("button", { name: "创建并切换" }).click();
-  await expect(page.locator("#ledger-modal")).toBeHidden();
-  await expect(page.locator("#import-ledger-select")).toHaveValue(/.+/);
-  await expect(page.locator("#import-ledger-select")).toContainText("支付宝导入测试");
+  await expect(page.locator("#chat-view")).toBeVisible();
+  await expect(page.locator('[data-view="import"]')).toHaveCount(0);
+  await expect(page.locator("#bill-file")).toHaveAttribute("accept", /\.xlsx,.csv/);
 
   const csv = [
     "支付宝交易明细",
@@ -104,13 +99,30 @@ test("5 可以创建账本并导入支付宝账单且自动去重", async ({ pag
     "2026-07-28 18:00:00,账户转存,余额宝,/,转入,不计收支,500.00,余额,交易成功,e2e-neutral-1,e2e-merchant-2,",
   ].join("\r\n");
   await page.locator("#bill-file").setInputFiles({
+    name: "账单.pdf",
+    mimeType: "application/pdf",
+    buffer: Buffer.from("not a bill", "utf8"),
+  });
+  await expect(page.locator("#toast")).toContainText("仅支持 Excel");
+
+  const previewRequest = page.waitForRequest(
+    (request) => request.url().endsWith("/api/imports/preview") && request.method() === "POST",
+  );
+  await page.locator("#bill-file").setInputFiles({
     name: "支付宝交易明细.csv",
     mimeType: "text/csv",
     buffer: Buffer.from(csv, "utf8"),
   });
+  await previewRequest;
   await expect(page.locator("#import-preview")).toBeVisible();
   await expect(page.locator("#import-count")).toHaveText("1");
   await expect(page.locator("#import-skipped-count")).toHaveText("1");
+  await page.locator("#import-create-ledger").click();
+  await page.locator("#ledger-name-input").fill("支付宝导入测试");
+  await page.locator("#ledger-form").getByRole("button", { name: "创建并切换" }).click();
+  await expect(page.locator("#ledger-modal")).toBeHidden();
+  await expect(page.locator("#import-ledger-select")).toHaveValue(/.+/);
+  await expect(page.locator("#import-ledger-select")).toContainText("支付宝导入测试");
   await page.locator("#commit-import").click();
   await expect(page.locator("#bill-upload-status")).toContainText("已成功导入 1 笔");
 
@@ -119,7 +131,7 @@ test("5 可以创建账本并导入支付宝账单且自动去重", async ({ pag
   await expect(page.locator("#ledger-table-body")).toContainText("盒马");
 
   if (testInfo.project.name === "mobile") await page.locator("#mobile-menu").click();
-  await page.locator('[data-view="import"]').click();
+  await page.locator('[data-view="chat"]').click();
   await page.locator("#bill-file").setInputFiles({
     name: "支付宝交易明细.csv",
     mimeType: "text/csv",
