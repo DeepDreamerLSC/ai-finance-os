@@ -183,3 +183,39 @@ test("7 用户名可修改，账本可重命名和删除", async ({ page }, test
   await page.locator('#ledger-manager-list input[value="旅行账本"]').locator("..").getByRole("button", { name: "删除" }).click();
   await expect(page.locator('#ledger-manager-list input[value="旅行账本"]')).toHaveCount(0);
 });
+
+test("8 账目完整明细和金额都可以编辑", async ({ page }, testInfo) => {
+  await page.goto("/#ledger");
+  await login(page, phoneFor(testInfo));
+
+  await page.locator("#new-ledger-button").click();
+  await page.locator("#ledger-name-input").fill("报销账本");
+  await page.locator("#ledger-form").getByRole("button", { name: "创建并切换" }).click();
+  await page.locator("#new-ledger-entry").click();
+  await page.locator("#chat-input").fill("临时停车112元");
+  await page.locator("#chat-form").getByRole("button", { name: "发送" }).click();
+  await expect(page.locator("#parse-preview")).toBeVisible();
+  await page.locator("#confirm-preview").click();
+  await expect(page.locator("#toast")).toContainText("记录已写入账本");
+  if (testInfo.project.name === "mobile") await page.locator("#mobile-menu").click();
+  await page.locator('[data-view="ledger"]').click();
+
+  const parkingRow = page.locator("#ledger-table-body tr").filter({ hasText: "临时停车" });
+  await expect(parkingRow).toHaveCount(1);
+  await parkingRow.getByRole("button", { name: "编辑" }).click();
+  await expect(page.locator("#transaction-edit-modal")).toBeVisible();
+  await page.locator("#transaction-edit-note").fill("停车报销");
+  await page.locator("#transaction-edit-amount").fill("112.36");
+  await page.locator("#transaction-edit-type").selectOption("income");
+  await page.locator("#transaction-edit-category").fill("差旅报销");
+  await page.locator("#transaction-edit-date").fill("2026-07-09");
+  await page.locator("#transaction-edit-ledger").selectOption({ label: "报销账本" });
+  await page.locator("#transaction-edit-form").getByRole("button", { name: "保存全部修改" }).click();
+  await expect(page.locator("#transaction-edit-modal")).toBeHidden();
+
+  await page.locator("#ledger-name-button").selectOption({ label: "报销账本" });
+  await expect(page.locator("#ledger-table-body")).toContainText("停车报销");
+  await expect(page.locator("#ledger-table-body")).toContainText("差旅报销");
+  await expect(page.locator("#ledger-table-body")).toContainText("+¥112.36");
+  await expect(page.locator("#ledger-table-body")).toContainText("7月9日");
+});

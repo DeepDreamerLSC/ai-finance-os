@@ -212,6 +212,26 @@
         <div id="transaction-detail-content"><h3 id="transaction-detail-title">交易详情</h3></div>
       </section>
     </div>
+    <div id="transaction-edit-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="transaction-edit-title">
+      <div class="modal-backdrop" data-close-transaction-edit></div>
+      <form id="transaction-edit-form" class="modal-card transaction-edit-card">
+        <button id="close-transaction-edit-modal" class="modal-close" type="button" aria-label="关闭账目编辑">×</button>
+        <p class="eyebrow">编辑账目</p>
+        <h3 id="transaction-edit-title">修改完整交易信息</h3>
+        <div class="transaction-edit-grid">
+          <label class="modal-field transaction-edit-wide"><span>备注</span><input id="transaction-edit-note" maxlength="80" required /></label>
+          <label class="modal-field"><span>金额（元）</span><input id="transaction-edit-amount" type="number" inputmode="decimal" min="0.01" max="999999999999.99" step="0.01" required /></label>
+          <label class="modal-field"><span>收支类型</span><select id="transaction-edit-type"><option value="expense">支出</option><option value="income">收入</option></select></label>
+          <label class="modal-field"><span>分类</span><input id="transaction-edit-category" maxlength="24" list="transaction-category-options" required /></label>
+          <label class="modal-field"><span>日期</span><input id="transaction-edit-date" type="date" required /></label>
+          <label class="modal-field transaction-edit-wide"><span>所属账本</span><select id="transaction-edit-ledger" required></select></label>
+        </div>
+        <datalist id="transaction-category-options"><option value="餐饮"></option><option value="交通"></option><option value="购物"></option><option value="住房"></option><option value="娱乐"></option><option value="医疗"></option><option value="教育"></option><option value="工资"></option><option value="奖金"></option><option value="转账"></option><option value="其他"></option></datalist>
+        <p id="transaction-edit-source" class="modal-helper transaction-edit-source"></p>
+        <p id="transaction-edit-error" class="login-error" role="alert"></p>
+        <button class="primary-button modal-submit" type="submit">保存全部修改</button>
+      </form>
+    </div>
     <div id="ledger-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="ledger-modal-title">
       <div class="modal-backdrop" data-close-ledger-modal></div>
       <form id="ledger-form" class="modal-card compact-modal">

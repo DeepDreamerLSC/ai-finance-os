@@ -161,11 +161,17 @@ select.select-button { appearance: none; cursor: pointer; }
 .compact-modal { width: min(100%, 430px); }
 .modal-field { display: grid; gap: 9px; }
 .modal-field span { color: var(--muted); font-size: 12px; font-weight: 700; }
-.modal-field input { min-height: 50px; border: 1px solid var(--line); border-radius: 11px; padding: 0 14px; outline: none; }
-.modal-field input:focus { border-color: var(--cyan); box-shadow: 0 0 0 4px rgba(38,198,221,.1); }
+.modal-field input, .modal-field select { width: 100%; min-height: 50px; border: 1px solid var(--line); border-radius: 11px; background: var(--paper); color: var(--ink); padding: 0 14px; outline: none; }
+.modal-field input:focus, .modal-field select:focus { border-color: var(--cyan); box-shadow: 0 0 0 4px rgba(38,198,221,.1); }
 .modal-submit { width: 100%; margin-top: 8px; }
 .modal-helper { margin: -8px 0 18px; color: var(--faint); font-size: 12px; line-height: 1.6; }
 #profile-phone { margin: 10px 0 18px; }
+.transaction-edit-card { width: min(100%, 590px); }
+.transaction-edit-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.transaction-edit-wide { grid-column: 1 / -1; }
+.transaction-edit-source { margin: 14px 0 4px; }
+.detail-actions { display: flex; gap: 10px; margin-top: 18px; }
+.detail-actions .primary-button { width: 100%; }
 .ledger-manager-card { width: min(100%, 620px); }
 .ledger-manager-list { display: grid; gap: 10px; }
 .ledger-manager-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: center; padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--canvas); }
@@ -207,6 +213,8 @@ select.select-button { appearance: none; cursor: pointer; }
   .heading-actions .secondary-button { width: 100%; }
   .ledger-manager-row { grid-template-columns: 1fr 1fr; }
   .ledger-manager-row input { grid-column: 1 / -1; }
+  .transaction-edit-grid { grid-template-columns: 1fr; }
+  .transaction-edit-wide { grid-column: auto; }
   .metric-grid { grid-template-columns: 1fr; gap: 10px; }
   .metric-card { padding: 17px; }
   .metric-card strong { font-size: 31px; }

@@ -328,10 +328,20 @@ def update_transaction(db: Session, user_id: str, transaction_id: str, updates: 
     )
     if not transaction:
         return None
-    allowed = {"amount", "type", "category", "note", "date"}
+    allowed = {"ledgerId", "amount", "type", "category", "note", "date"}
     unknown = set(updates) - allowed
     if unknown:
         raise ValueError(f"unsupported fields: {', '.join(sorted(unknown))}")
+    if "ledgerId" in updates:
+        target_ledger = db.scalar(
+            select(Ledger).where(
+                Ledger.id == str(updates["ledgerId"]),
+                Ledger.user_id == user_id,
+            )
+        )
+        if not target_ledger:
+            raise ValueError("目标账本不存在")
+        transaction.ledger_id = target_ledger.id
     if "amount" in updates:
         transaction.amount = money_decimal(updates["amount"])
     if "type" in updates:

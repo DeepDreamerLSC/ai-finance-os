@@ -270,6 +270,63 @@ def test_money_with_more_than_two_decimals_is_rejected_instead_of_rounded(client
     assert response.json()["detail"] == "金额最多保留两位小数"
 
 
+def test_transaction_full_details_can_be_edited_and_moved_between_ledgers(
+    client, login, db_session
+):
+    auth = login("13800138040")
+    state = client.get("/api/state", headers=auth["headers"]).json()
+    transaction = next(row for row in state["transactions"] if row["note"] == "停车费")
+    target_ledger = client.post(
+        "/api/ledgers",
+        json={"name": "报销账本"},
+        headers=auth["headers"],
+    ).json()["ledger"]
+
+    response = client.patch(
+        f"/api/transactions/{transaction['id']}",
+        json={
+            "ledgerId": target_ledger["id"],
+            "amount": "112.36",
+            "type": "income",
+            "category": "差旅报销",
+            "note": "停车报销",
+            "date": "2026-07-09",
+        },
+        headers=auth["headers"],
+    )
+    assert response.status_code == 200, response.text
+    updated = response.json()["transaction"]
+    assert updated == {
+        "id": transaction["id"],
+        "ledgerId": target_ledger["id"],
+        "amount": 112.36,
+        "type": "income",
+        "category": "差旅报销",
+        "note": "停车报销",
+        "date": "2026-07-09",
+        "source": "manual",
+    }
+    stored = db_session.scalar(select(Transaction).where(Transaction.id == transaction["id"]))
+    assert stored.amount == Decimal("112.36")
+    assert stored.ledger_id == target_ledger["id"]
+
+
+def test_transaction_cannot_be_moved_to_another_users_ledger(client, login):
+    owner = login("13800138041")
+    owner_state = client.get("/api/state", headers=owner["headers"]).json()
+    transaction_id = owner_state["transactions"][0]["id"]
+    other = login("13800138042")
+    other_ledger_id = client.get("/api/state", headers=other["headers"]).json()["ledgers"][0]["id"]
+
+    response = client.patch(
+        f"/api/transactions/{transaction_id}",
+        json={"ledgerId": other_ledger_id},
+        headers=owner["headers"],
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "目标账本不存在"
+
+
 def test_import_rejects_tampered_preview_rows(client, login):
     auth = login("13800138035")
     ledger_id = client.post(
