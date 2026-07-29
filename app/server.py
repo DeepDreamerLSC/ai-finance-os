@@ -40,6 +40,7 @@ from app.imports import (
 
 
 WEB_DIR = ROOT / "web"
+NO_STORE_HEADERS = {"Cache-Control": "no-store"}
 app = FastAPI(
     title="AI Personal Finance OS",
     version="2.0.0",
@@ -286,27 +287,43 @@ def receipt_download(
 
 @app.get("/")
 def index() -> FileResponse:
-    return FileResponse(WEB_DIR / "index.html")
+    return FileResponse(WEB_DIR / "index.html", headers=NO_STORE_HEADERS)
 
 
 @app.get("/styles.css")
 def styles() -> FileResponse:
-    return FileResponse(WEB_DIR / "styles.css", media_type="text/css")
+    return FileResponse(
+        WEB_DIR / "styles.css",
+        media_type="text/css",
+        headers=NO_STORE_HEADERS,
+    )
 
 
 @app.get("/app.js")
 def javascript() -> FileResponse:
-    return FileResponse(WEB_DIR / "app.js", media_type="application/javascript")
+    return FileResponse(
+        WEB_DIR / "app.js",
+        media_type="application/javascript",
+        headers=NO_STORE_HEADERS,
+    )
 
 
 @app.get("/auth-utils.js")
 def auth_utilities() -> FileResponse:
-    return FileResponse(WEB_DIR / "auth-utils.js", media_type="application/javascript")
+    return FileResponse(
+        WEB_DIR / "auth-utils.js",
+        media_type="application/javascript",
+        headers=NO_STORE_HEADERS,
+    )
 
 
 @app.get("/input-utils.js")
 def input_utilities() -> FileResponse:
-    return FileResponse(WEB_DIR / "input-utils.js", media_type="application/javascript")
+    return FileResponse(
+        WEB_DIR / "input-utils.js",
+        media_type="application/javascript",
+        headers=NO_STORE_HEADERS,
+    )
 
 
 def main() -> None:

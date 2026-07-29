@@ -4,8 +4,8 @@ import {
   validCode,
   validPhone,
   viewFromLocation,
-} from "/auth-utils.js";
-import { createVoiceInputController } from "/input-utils.js";
+} from "/auth-utils.js?v=20260729-upload-1";
+import { createVoiceInputController } from "/input-utils.js?v=20260729-upload-1";
 
 const appState = {
   data: null,
