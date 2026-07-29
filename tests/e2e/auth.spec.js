@@ -275,7 +275,9 @@ test("8 账目完整明细和金额都可以编辑", async ({ page }, testInfo) 
   await page.locator("#transaction-edit-note").fill("停车报销");
   await page.locator("#transaction-edit-amount").fill("112.36");
   await page.locator("#transaction-edit-type").selectOption("income");
-  await page.locator("#transaction-edit-category").fill("差旅报销");
+  await page.locator("#transaction-edit-category").selectOption("退款报销");
+  await page.locator("#transaction-edit-subcategory").selectOption("公司报销");
+  await page.locator("#transaction-edit-tags").fill("工作，可报销");
   await page.locator("#transaction-edit-date").fill("2026-07-09");
   await page.locator("#transaction-edit-ledger").selectOption({ label: "报销账本" });
   await page.locator("#transaction-edit-form").getByRole("button", { name: "保存全部修改" }).click();
@@ -283,7 +285,8 @@ test("8 账目完整明细和金额都可以编辑", async ({ page }, testInfo) 
 
   await page.locator("#ledger-name-button").selectOption({ label: "报销账本" });
   await expect(page.locator("#ledger-table-body")).toContainText("停车报销");
-  await expect(page.locator("#ledger-table-body")).toContainText("差旅报销");
+  await expect(page.locator("#ledger-table-body")).toContainText("退款报销 · 公司报销");
+  await expect(page.locator("#ledger-table-body")).toContainText("可报销");
   await expect(page.locator("#ledger-table-body")).toContainText("+¥112.36");
   await expect(page.locator("#ledger-table-body")).toContainText("7月9日");
 });

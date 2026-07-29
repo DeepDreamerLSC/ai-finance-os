@@ -11,6 +11,7 @@ from pathlib import Path
 from sqlalchemy import select
 
 from app.auth import normalize_phone
+from app.categories import classify_transaction
 from app.database import SessionLocal
 from app.finance import ensure_ledger
 from app.models import Receipt, Transaction, User
@@ -41,11 +42,20 @@ def main() -> None:
             ledger_id = ledger_map.get(legacy_ledger_id)
             if not ledger_id:
                 ledger_id = ensure_ledger(db, user.id, "历史账本").id
+            classification = classify_transaction(
+                str(item.get("note") or "历史记录"),
+                item.get("type", "expense"),
+                existing_category=item.get("category"),
+                source=item.get("source", "legacy"),
+                tags=item.get("tags"),
+            )
             transaction = Transaction(
                 ledger_id=ledger_id,
                 amount=Decimal(str(item["amount"])),
                 type=item.get("type", "expense"),
-                category=item.get("category", "其他"),
+                category=classification["category"],
+                subcategory=item.get("subcategory") or classification["subcategory"],
+                tags=classification["tags"],
                 note=item.get("note", "历史记录"),
                 transaction_date=datetime.strptime(item["date"], "%Y-%m-%d").date(),
                 source=item.get("source", "legacy"),

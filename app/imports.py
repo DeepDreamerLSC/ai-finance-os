@@ -12,6 +12,7 @@ from openpyxl import load_workbook
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.categories import classify_transaction
 from app.money import money_decimal
 from app.models import Ledger, Transaction
 
@@ -20,29 +21,6 @@ MAX_IMPORT_FILE_BYTES = 12 * 1024 * 1024
 MAX_IMPORT_ROWS = 5_000
 IMPORT_SOURCES = {"wechat-import", "alipay-import"}
 FAILED_STATUS_MARKERS = ("失败", "关闭", "撤销", "取消")
-
-ALIPAY_CATEGORY_RULES = (
-    ("餐饮", ("餐饮", "美食", "外卖", "咖啡", "茶饮")),
-    ("交通", ("交通", "出行", "打车", "停车", "加油", "充电")),
-    ("住房", ("住房", "物业", "房租", "家居")),
-    ("购物", ("百货", "购物", "数码", "服饰", "商超", "盒马")),
-    ("医疗", ("医疗", "健康", "药")),
-    ("教育", ("教育", "培训", "书")),
-    ("娱乐", ("休闲", "娱乐", "旅游", "游戏")),
-    ("转账", ("亲友", "转账", "红包")),
-)
-
-GENERAL_CATEGORY_RULES = (
-    ("交通", ("停车", "车场", "打车", "地铁", "公交", "加油", "充电", "出行")),
-    ("餐饮", ("餐饮", "美食", "餐厅", "外卖", "咖啡", "茶", "冒菜", "盒饭")),
-    ("购物", ("盒马", "超市", "百货", "购物", "采购", "商场", "商品")),
-    ("住房", ("房租", "住房", "物业", "家居")),
-    ("医疗", ("医院", "医疗", "药房", "健康")),
-    ("教育", ("教育", "培训", "书店")),
-    ("娱乐", ("旅游", "景区", "游乐", "游戏", "酒吧")),
-    ("转账", ("转账", "亲友代付", "二维码付款", "红包")),
-)
-
 
 def _clean(value: Any) -> str:
     if value is None:
@@ -125,18 +103,6 @@ def _direction(value: Any) -> str | None:
     return None
 
 
-def _category(provider: str, trade_category: str, text: str) -> str:
-    haystack = f"{trade_category} {text}"
-    if provider == "alipay":
-        for category, keywords in ALIPAY_CATEGORY_RULES:
-            if any(keyword in haystack for keyword in keywords):
-                return category
-    for category, keywords in GENERAL_CATEGORY_RULES:
-        if any(keyword in haystack for keyword in keywords):
-            return category
-    return "其他"
-
-
 def _note(counterparty: str, product: str, trade_category: str) -> str:
     values = [value for value in (counterparty, product) if value and value != "/"]
     if len(values) > 1 and values[1] in values[0]:
@@ -172,11 +138,21 @@ def _import_values(item: dict[str, Any]) -> dict[str, Any]:
         transaction_date = datetime.strptime(str(item.get("date")), "%Y-%m-%d").date()
     except ValueError as exc:
         raise ValueError("导入交易日期格式不正确") from exc
+    note = (str(item.get("note") or "账单导入").strip() or "账单导入")[:80]
+    classification = classify_transaction(
+        note,
+        transaction_type,
+        existing_category=str(item.get("category") or ""),
+        source=source,
+        tags=item.get("tags"),
+    )
     return {
         "amount": money_decimal(item.get("amount", 0), field="导入交易金额"),
         "type": transaction_type,
-        "category": (str(item.get("category") or "其他").strip() or "其他")[:24],
-        "note": (str(item.get("note") or "账单导入").strip() or "账单导入")[:80],
+        "category": classification["category"],
+        "subcategory": (str(item.get("subcategory") or classification["subcategory"]).strip() or "其他")[:32],
+        "tags": classification["tags"],
+        "note": note,
         "date": transaction_date,
         "source": source,
     }
@@ -188,6 +164,8 @@ def _matches_import(transaction: Transaction, item: dict[str, Any]) -> bool:
         transaction.amount == values["amount"]
         and transaction.type == values["type"]
         and transaction.category == values["category"]
+        and transaction.subcategory == values["subcategory"]
+        and (transaction.tags or []) == values["tags"]
         and transaction.note == values["note"]
         and transaction.transaction_date == values["date"]
         and transaction.source == values["source"]
@@ -202,6 +180,8 @@ def _existing_payload(transaction: Transaction, ledger_name: str) -> dict[str, A
         "amount": float(transaction.amount),
         "type": transaction.type,
         "category": transaction.category,
+        "subcategory": transaction.subcategory,
+        "tags": transaction.tags or [],
         "note": transaction.note,
         "date": transaction.transaction_date.isoformat(),
         "source": transaction.source,
@@ -260,14 +240,20 @@ def parse_bill(filename: str, content: bytes) -> dict[str, Any]:
             product,
         )
         text = f"{counterparty} {product} {trade_category}"
+        note = _note(counterparty, product, trade_category)
+        classification = classify_transaction(
+            f"{text} {note}",
+            transaction_type,
+            source=source,
+        )
         transactions.append(
             {
                 "fingerprint": fingerprint,
                 "externalId": external_id,
                 "amount": float(amount),
                 "type": transaction_type,
-                "category": _category(provider, trade_category, text),
-                "note": _note(counterparty, product, trade_category),
+                **classification,
+                "note": note,
                 "date": transaction_date,
                 "occurredAt": occurred_at,
                 "source": source,
@@ -409,6 +395,8 @@ def import_bill_transactions(
             existing_transaction.amount = values["amount"]
             existing_transaction.type = values["type"]
             existing_transaction.category = values["category"]
+            existing_transaction.subcategory = values["subcategory"]
+            existing_transaction.tags = values["tags"]
             existing_transaction.note = values["note"]
             existing_transaction.transaction_date = values["date"]
             existing_transaction.source = values["source"]
@@ -421,6 +409,8 @@ def import_bill_transactions(
             amount=values["amount"],
             type=values["type"],
             category=values["category"],
+            subcategory=values["subcategory"],
+            tags=values["tags"],
             note=values["note"],
             transaction_date=values["date"],
             source=values["source"],

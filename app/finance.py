@@ -12,18 +12,16 @@ from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.categories import (
+    category_options,
+    classify_transaction,
+    normalize_tags,
+    validate_classification,
+)
 from app.config import settings
 from app.money import money_decimal
 from app.models import Ledger, Receipt, Transaction, User
 
-
-CATEGORY_RULES = (
-    ("交通", ("停车", "打车", "地铁", "公交", "交通", "加油")),
-    ("餐饮", ("外卖", "餐", "吃", "咖啡", "餐饮")),
-    ("购物", ("盒马", "超市", "购物", "采购", "商场")),
-    ("住房", ("房租", "住房", "物业")),
-    ("奖金", ("奖金", "销冠", "提成")),
-)
 
 DEMO_RECEIPT_SVG = """\
 <svg xmlns="http://www.w3.org/2000/svg" width="720" height="1040" viewBox="0 0 720 1040">
@@ -48,10 +46,7 @@ def _money(value: float) -> str:
 
 
 def classify(text: str) -> str:
-    for category, keywords in CATEGORY_RULES:
-        if any(keyword in text for keyword in keywords):
-            return category
-    return "其他"
+    return classify_transaction(text, _transaction_type(text))["category"]
 
 
 def _transaction_type(text: str) -> str:
@@ -85,15 +80,13 @@ def parse_command(text: str) -> dict:
         end = min(len(normalized), min(next_positions) + 1 if next_positions else match.end() + 18)
         context = normalized[start:end]
         transaction_type = _transaction_type(context)
-        category = classify(context)
-        if category == "其他" and transaction_type == "income":
-            category = "收入"
+        classification = classify_transaction(context, transaction_type, source="natural-language")
         note = context.replace(match.group(0), "").strip("，,。；; ") or "自然语言记录"
         transactions.append(
             {
                 "amount": float(amount),
                 "type": transaction_type,
-                "category": category,
+                **classification,
                 "note": note[:32],
                 "date": _extract_date(normalized),
                 "source": "natural-language",
@@ -114,6 +107,8 @@ def _transaction_payload(transaction: Transaction, receipt_id: str | None = None
         "amount": float(transaction.amount),
         "type": transaction.type,
         "category": transaction.category,
+        "subcategory": transaction.subcategory,
+        "tags": transaction.tags or [],
         "note": transaction.note,
         "date": transaction.transaction_date.isoformat(),
         "source": transaction.source,
@@ -231,18 +226,28 @@ def seed_user_data(db: Session, user: User) -> None:
         (3800, "expense", "住房", "房租", month_date(2, 3), "manual"),
         (420, "expense", "交通", "打车", month_date(3, 18), "manual"),
     ]
-    transactions = [
-        Transaction(
-            ledger_id=ledger.id,
-            amount=Decimal(str(amount)),
-            type=transaction_type,
-            category=category,
-            note=note,
-            transaction_date=transaction_date,
+    transactions = []
+    for amount, transaction_type, category, note, transaction_date, source in rows:
+        classification = classify_transaction(
+            note,
+            transaction_type,
+            existing_category=category,
             source=source,
+            has_receipt=source == "receipt",
         )
-        for amount, transaction_type, category, note, transaction_date, source in rows
-    ]
+        transactions.append(
+            Transaction(
+                ledger_id=ledger.id,
+                amount=Decimal(str(amount)),
+                type=transaction_type,
+                category=classification["category"],
+                subcategory=classification["subcategory"],
+                tags=classification["tags"],
+                note=note,
+                transaction_date=transaction_date,
+                source=source,
+            )
+        )
     db.add_all(transactions)
     db.flush()
 
@@ -288,6 +293,7 @@ def build_state(db: Session, user_id: str) -> dict:
             for transaction in transactions
         ],
         "receipts": [_receipt_payload(receipt) for receipt in receipts],
+        "categoryOptions": category_options(),
     }
     state["dashboard"] = dashboard(state)
     return state
@@ -302,11 +308,21 @@ def add_transactions(db: Session, user_id: str, parsed: dict, ledger_name: str |
     added = []
     for item in parsed.get("transactions", []):
         amount = money_decimal(item["amount"])
+        transaction_type = item.get("type", "expense")
+        classification = classify_transaction(
+            str(item.get("note", "")),
+            transaction_type,
+            existing_category=str(item.get("category") or ""),
+            source=item.get("source", "manual"),
+            tags=item.get("tags"),
+        )
         transaction = Transaction(
             ledger_id=ledger.id,
             amount=amount,
-            type=item.get("type", "expense"),
-            category=str(item.get("category", "其他"))[:24],
+            type=transaction_type,
+            category=classification["category"],
+            subcategory=str(item.get("subcategory") or classification["subcategory"])[:32],
+            tags=classification["tags"],
             note=str(item.get("note", "自然语言记录"))[:80],
             transaction_date=datetime.strptime(
                 item.get("date") or date.today().isoformat(), "%Y-%m-%d"
@@ -328,7 +344,7 @@ def update_transaction(db: Session, user_id: str, transaction_id: str, updates: 
     )
     if not transaction:
         return None
-    allowed = {"ledgerId", "amount", "type", "category", "note", "date"}
+    allowed = {"ledgerId", "amount", "type", "category", "subcategory", "tags", "note", "date"}
     unknown = set(updates) - allowed
     if unknown:
         raise ValueError(f"unsupported fields: {', '.join(sorted(unknown))}")
@@ -348,11 +364,30 @@ def update_transaction(db: Session, user_id: str, transaction_id: str, updates: 
         if updates["type"] not in {"expense", "income"}:
             raise ValueError("type must be expense or income")
         transaction.type = updates["type"]
+        if "category" not in updates:
+            classification = classify_transaction(
+                transaction.note,
+                transaction.type,
+                existing_category=transaction.category,
+                source=transaction.source,
+                tags=transaction.tags,
+            )
+            transaction.category = classification["category"]
+            transaction.subcategory = classification["subcategory"]
     if "category" in updates:
         category = str(updates["category"]).strip()
         if not category:
             raise ValueError("category cannot be empty")
         transaction.category = category[:24]
+        if "subcategory" not in updates:
+            transaction.subcategory = "其他"
+    if "subcategory" in updates:
+        subcategory = str(updates["subcategory"]).strip()
+        if not subcategory:
+            raise ValueError("subcategory cannot be empty")
+        transaction.subcategory = subcategory[:32]
+    if "tags" in updates:
+        transaction.tags = normalize_tags(updates["tags"])
     if "note" in updates:
         note = str(updates["note"]).strip()
         if not note:
@@ -360,6 +395,7 @@ def update_transaction(db: Session, user_id: str, transaction_id: str, updates: 
         transaction.note = note[:80]
     if "date" in updates:
         transaction.transaction_date = datetime.strptime(str(updates["date"]), "%Y-%m-%d").date()
+    validate_classification(transaction.type, transaction.category, transaction.subcategory)
     db.commit()
     return _transaction_payload(transaction)
 
@@ -464,11 +500,20 @@ def apply_receipt(
         or db.scalar(select(Ledger.name).where(Ledger.user_id == user_id).order_by(Ledger.created_at))
         or f"{date.today().year} 账本",
     )
+    classification = classify_transaction(
+        receipt.merchant,
+        "expense",
+        existing_category=receipt.category,
+        source="receipt",
+        has_receipt=True,
+    )
     transaction = Transaction(
         ledger_id=ledger.id,
         amount=receipt.amount,
         type="expense",
-        category=receipt.category,
+        category=classification["category"],
+        subcategory=classification["subcategory"],
+        tags=classification["tags"],
         note=receipt.merchant,
         transaction_date=receipt.receipt_date,
         source="receipt",

@@ -9,6 +9,7 @@ def test_parse_single_expense():
     assert parsed["transactions"][0]["amount"] == 112
     assert parsed["transactions"][0]["type"] == "expense"
     assert parsed["transactions"][0]["category"] == "交通"
+    assert parsed["transactions"][0]["subcategory"] == "停车"
 
 
 def test_parse_multiple_records_and_ledger():
@@ -16,7 +17,8 @@ def test_parse_multiple_records_and_ledger():
     assert parsed["ledger"]["name"] == "2026 账本"
     assert len(parsed["transactions"]) == 2
     assert parsed["transactions"][1]["type"] == "income"
-    assert parsed["transactions"][1]["category"] == "奖金"
+    assert parsed["transactions"][1]["category"] == "工资收入"
+    assert parsed["transactions"][1]["subcategory"] == "奖金"
 
 
 def test_parse_treats_chinese_comma_as_a_record_separator():

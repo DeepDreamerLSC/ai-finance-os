@@ -56,6 +56,16 @@ function sourceLabel(source) {
   return "手动记录";
 }
 
+function categoryLabel(transaction) {
+  return transaction.subcategory && transaction.subcategory !== "其他"
+    ? `${transaction.category} · ${transaction.subcategory}`
+    : transaction.category;
+}
+
+function renderTagChips(tags) {
+  return (tags || []).map((tag) => `<span class="transaction-tag">${escapeHtml(tag)}</span>`).join("");
+}
+
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>'"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[char]));
 }
@@ -398,18 +408,18 @@ function renderDashboard() {
   $("#donut-chart").style.background = stops.length ? `conic-gradient(${stops.join(",")})` : "#e7ebf0";
   $("#category-legend").innerHTML = categories.length ? categories.map(([label, value], index) => `<div class="legend-row"><span class="legend-label"><i class="legend-dot" style="background:${palette[index % palette.length]}"></i>${escapeHtml(label)}</span><strong>${Math.round(value / categoryTotal * 100)}%</strong></div>`).join("") : `<span class="muted-label">暂无分类</span>`;
 
-  $("#recent-list").innerHTML = (dashboard.recent || []).slice(0, 5).map((tx) => `<div class="recent-row"><span class="transaction-icon ${tx.type}">${tx.type === "income" ? "↗" : "↘"}</span><div class="recent-main"><strong>${escapeHtml(tx.note)}</strong><small>${escapeHtml(tx.category)} · ${dateLabel(tx.date)}</small></div><div class="recent-amount"><strong class="${tx.type}">${tx.type === "income" ? "+" : "−"}${currency(tx.amount)}</strong><small>${sourceLabel(tx.source)}</small></div></div>`).join("") || `<div class="empty-state">还没有交易。</div>`;
+  $("#recent-list").innerHTML = (dashboard.recent || []).slice(0, 5).map((tx) => `<div class="recent-row"><span class="transaction-icon ${tx.type}">${tx.type === "income" ? "↗" : "↘"}</span><div class="recent-main"><strong>${escapeHtml(tx.note)}</strong><small>${escapeHtml(categoryLabel(tx))} · ${dateLabel(tx.date)}</small></div><div class="recent-amount"><strong class="${tx.type}">${tx.type === "income" ? "+" : "−"}${currency(tx.amount)}</strong><small>${sourceLabel(tx.source)}</small></div></div>`).join("") || `<div class="empty-state">还没有交易。</div>`;
 }
 
 function renderLedger() {
   const rows = (appState.data.transactions || []).filter((tx) => {
     const matchesLedger = !appState.selectedLedgerId || tx.ledgerId === appState.selectedLedgerId;
     const matchesFilter = appState.filter === "all" || tx.type === appState.filter;
-    const haystack = `${tx.note} ${tx.category} ${tx.date}`.toLowerCase();
+    const haystack = `${tx.note} ${tx.category} ${tx.subcategory || ""} ${(tx.tags || []).join(" ")} ${tx.date}`.toLowerCase();
     return matchesLedger && matchesFilter && haystack.includes(appState.query.toLowerCase());
   }).sort((a, b) => b.date.localeCompare(a.date));
   $("#ledger-empty").classList.toggle("hidden", rows.length > 0);
-  $("#ledger-table-body").innerHTML = rows.map((tx) => { const receipt = tx.receiptId && appState.data.receipts.find((item) => item.id === tx.receiptId); const receiptAction = receipt ? `<button class="row-action" data-view-receipt-id="${escapeHtml(tx.receiptId)}">凭证</button>` : ""; return `<tr><td><div class="table-transaction"><span class="transaction-icon ${tx.type}">${tx.type === "income" ? "↗" : "↘"}</span><div><strong>${escapeHtml(tx.note)}</strong><small>${escapeHtml((appState.data.ledgers.find((ledger) => ledger.id === tx.ledgerId) || {}).name || "个人账本")}</small></div></div></td><td><span class="category-tag">${escapeHtml(tx.category)}</span></td><td>${dateLabel(tx.date)}</td><td>${sourceLabel(tx.source)}</td><td class="align-right ${tx.type === "income" ? "amount-income" : "amount-expense"}">${tx.type === "income" ? "+" : "−"}${currency(tx.amount)}</td><td class="align-right"><div class="row-actions"><button class="row-action" data-detail-id="${escapeHtml(tx.id)}">详情</button>${receiptAction}<button class="row-action" data-edit-id="${escapeHtml(tx.id)}">编辑</button><button class="row-action danger" data-delete-id="${escapeHtml(tx.id)}">删除</button></div></td></tr>`; }).join("");
+  $("#ledger-table-body").innerHTML = rows.map((tx) => { const receipt = tx.receiptId && appState.data.receipts.find((item) => item.id === tx.receiptId); const receiptAction = receipt ? `<button class="row-action" data-view-receipt-id="${escapeHtml(tx.receiptId)}">凭证</button>` : ""; return `<tr><td><div class="table-transaction"><span class="transaction-icon ${tx.type}">${tx.type === "income" ? "↗" : "↘"}</span><div><strong>${escapeHtml(tx.note)}</strong><small>${escapeHtml((appState.data.ledgers.find((ledger) => ledger.id === tx.ledgerId) || {}).name || "个人账本")}</small></div></div></td><td><span class="category-tag">${escapeHtml(categoryLabel(tx))}</span><div class="transaction-tags">${renderTagChips(tx.tags)}</div></td><td>${dateLabel(tx.date)}</td><td>${sourceLabel(tx.source)}</td><td class="align-right ${tx.type === "income" ? "amount-income" : "amount-expense"}">${tx.type === "income" ? "+" : "−"}${currency(tx.amount)}</td><td class="align-right"><div class="row-actions"><button class="row-action" data-detail-id="${escapeHtml(tx.id)}">详情</button>${receiptAction}<button class="row-action" data-edit-id="${escapeHtml(tx.id)}">编辑</button><button class="row-action danger" data-delete-id="${escapeHtml(tx.id)}">删除</button></div></td></tr>`; }).join("");
 }
 
 async function viewTransactionReceipt(receiptId) {
@@ -433,7 +443,7 @@ function openTransactionDetails(transactionId) {
   if (!tx) return;
   const receipt = tx.receiptId && appState.data.receipts.find((item) => item.id === tx.receiptId);
   const ledger = appState.data.ledgers.find((item) => item.id === tx.ledgerId);
-  $("#transaction-detail-content").innerHTML = `<p class="eyebrow">交易详情</p><h3 id="transaction-detail-title">${escapeHtml(tx.note)}</h3><div class="detail-grid"><span>金额</span><strong class="${tx.type === "income" ? "amount-income" : "amount-expense"}">${tx.type === "income" ? "+" : "−"}${currency(tx.amount)}</strong><span>类型</span><strong>${tx.type === "income" ? "收入" : "支出"}</strong><span>分类</span><strong>${escapeHtml(tx.category)}</strong><span>日期</span><strong>${escapeHtml(tx.date)}</strong><span>账本</span><strong>${escapeHtml(ledger?.name || "个人账本")}</strong><span>来源</span><strong>${sourceLabel(tx.source)}</strong></div>${receipt?.fileUrl ? `<div class="detail-receipt"><img data-protected-receipt="${escapeHtml(receipt.id)}" alt="${escapeHtml(receipt.filename)}" /><button class="text-button" data-modal-receipt-id="${escapeHtml(receipt.id)}">查看原始凭证 →</button></div>` : `<p class="muted-label detail-empty">暂无关联原始凭证</p>`}<div class="detail-actions"><button class="primary-button" type="button" data-edit-detail-id="${escapeHtml(tx.id)}">编辑完整明细</button></div>`;
+  $("#transaction-detail-content").innerHTML = `<p class="eyebrow">交易详情</p><h3 id="transaction-detail-title">${escapeHtml(tx.note)}</h3><div class="detail-grid"><span>金额</span><strong class="${tx.type === "income" ? "amount-income" : "amount-expense"}">${tx.type === "income" ? "+" : "−"}${currency(tx.amount)}</strong><span>类型</span><strong>${tx.type === "income" ? "收入" : "支出"}</strong><span>一级分类</span><strong>${escapeHtml(tx.category)}</strong><span>二级分类</span><strong>${escapeHtml(tx.subcategory || "其他")}</strong><span>标签</span><strong class="detail-tags">${renderTagChips(tx.tags) || "—"}</strong><span>日期</span><strong>${escapeHtml(tx.date)}</strong><span>账本</span><strong>${escapeHtml(ledger?.name || "个人账本")}</strong><span>来源</span><strong>${sourceLabel(tx.source)}</strong></div>${receipt?.fileUrl ? `<div class="detail-receipt"><img data-protected-receipt="${escapeHtml(receipt.id)}" alt="${escapeHtml(receipt.filename)}" /><button class="text-button" data-modal-receipt-id="${escapeHtml(receipt.id)}">查看原始凭证 →</button></div>` : `<p class="muted-label detail-empty">暂无关联原始凭证</p>`}<div class="detail-actions"><button class="primary-button" type="button" data-edit-detail-id="${escapeHtml(tx.id)}">编辑完整明细</button></div>`;
   $("#transaction-modal").classList.remove("hidden");
   hydrateProtectedReceiptImages($("#transaction-detail-content"));
   const receiptButton = $("#transaction-detail-content [data-modal-receipt-id]");
@@ -456,7 +466,8 @@ function editTransaction(transactionId) {
   $("#transaction-edit-note").value = tx.note;
   $("#transaction-edit-amount").value = Number(tx.amount).toFixed(2);
   $("#transaction-edit-type").value = tx.type;
-  $("#transaction-edit-category").value = tx.category;
+  updateTransactionCategoryInputs(tx.category, tx.subcategory);
+  $("#transaction-edit-tags").value = (tx.tags || []).join("，");
   $("#transaction-edit-date").value = tx.date;
   $("#transaction-edit-ledger").innerHTML = appState.data.ledgers.map(
     (ledger) => `<option value="${escapeHtml(ledger.id)}">${escapeHtml(ledger.name)}</option>`,
@@ -465,6 +476,23 @@ function editTransaction(transactionId) {
   $("#transaction-edit-source").textContent = `记录来源：${sourceLabel(tx.source)}（来源与原始凭证保持只读）`;
   $("#transaction-edit-modal").classList.remove("hidden");
   window.setTimeout(() => $("#transaction-edit-note").focus(), 40);
+}
+
+function updateTransactionCategoryInputs(selectedCategory = "", selectedSubcategory = "") {
+  const transactionType = $("#transaction-edit-type").value;
+  const taxonomy = appState.data?.categoryOptions?.taxonomy?.[transactionType] || {};
+  const categories = Object.keys(taxonomy);
+  const category = categories.includes(selectedCategory) ? selectedCategory : categories[0] || "";
+  $("#transaction-edit-category").innerHTML = categories.map(
+    (item) => `<option value="${escapeHtml(item)}">${escapeHtml(item)}</option>`,
+  ).join("");
+  $("#transaction-edit-category").value = category;
+  const subcategories = taxonomy[category] || ["其他"];
+  const subcategory = subcategories.includes(selectedSubcategory) ? selectedSubcategory : subcategories[0];
+  $("#transaction-edit-subcategory").innerHTML = subcategories.map(
+    (item) => `<option value="${escapeHtml(item)}">${escapeHtml(item)}</option>`,
+  ).join("");
+  $("#transaction-edit-subcategory").value = subcategory;
 }
 
 function closeTransactionEditor() {
@@ -479,11 +507,13 @@ async function saveTransactionEdits(event) {
     ledgerId: $("#transaction-edit-ledger").value,
     amount: $("#transaction-edit-amount").value,
     type: $("#transaction-edit-type").value,
-    category: $("#transaction-edit-category").value.trim(),
+    category: $("#transaction-edit-category").value,
+    subcategory: $("#transaction-edit-subcategory").value,
+    tags: $("#transaction-edit-tags").value,
     note: $("#transaction-edit-note").value.trim(),
     date: $("#transaction-edit-date").value,
   };
-  if (!payload.note || !payload.category || !payload.amount || !payload.date || !payload.ledgerId) {
+  if (!payload.note || !payload.category || !payload.subcategory || !payload.amount || !payload.date || !payload.ledgerId) {
     $("#transaction-edit-error").textContent = "请完整填写账目字段";
     return;
   }
@@ -810,7 +840,7 @@ function importVersionCard(label, transaction, ledgerName = "") {
     <div class="import-version-card">
       <span>${label}</span>
       <strong>${escapeHtml(transaction.note)}</strong>
-      <small>${escapeHtml(transaction.category)} · ${escapeHtml(transaction.date)}${ledgerName ? ` · ${escapeHtml(ledgerName)}` : ""}</small>
+      <small>${escapeHtml(categoryLabel(transaction))} · ${escapeHtml(transaction.date)}${ledgerName ? ` · ${escapeHtml(ledgerName)}` : ""}</small>
       <b class="${transaction.type === "income" ? "amount-income" : "amount-expense"}">${transaction.type === "income" ? "+" : "−"}${currency(transaction.amount)}</b>
     </div>
   `;
@@ -853,7 +883,7 @@ function renderImportPreview(preview) {
         <input type="checkbox" data-import-index="${index}" ${tx.duplicate ? "disabled" : "checked"} aria-label="选择 ${escapeHtml(tx.note)}" />
         <span class="import-confirm-main">
           <strong>${escapeHtml(tx.note)}</strong>
-          <small>${escapeHtml(tx.category)} · ${escapeHtml(tx.date)}${tx.duplicate ? ` · ${escapeHtml(tx.duplicateReason)}` : ""}</small>
+          <small>${escapeHtml(categoryLabel(tx))} · ${escapeHtml(tx.date)}${tx.duplicate ? ` · ${escapeHtml(tx.duplicateReason)}` : ""}</small>
         </span>
         <strong class="${tx.type === "income" ? "amount-income" : "amount-expense"}">${tx.type === "income" ? "+" : "−"}${currency(tx.amount)}</strong>
       </label>
@@ -1032,6 +1062,8 @@ function wireEvents() {
   $("#close-transaction-modal").addEventListener("click", closeTransactionDetails);
   $("#transaction-modal").addEventListener("click", (event) => { if (event.target.matches("[data-close-modal]")) closeTransactionDetails(); });
   $("#transaction-edit-form").addEventListener("submit", saveTransactionEdits);
+  $("#transaction-edit-type").addEventListener("change", () => updateTransactionCategoryInputs());
+  $("#transaction-edit-category").addEventListener("change", (event) => updateTransactionCategoryInputs(event.target.value));
   $("#close-transaction-edit-modal").addEventListener("click", closeTransactionEditor);
   $("#transaction-edit-modal").addEventListener("click", (event) => { if (event.target.matches("[data-close-transaction-edit]")) closeTransactionEditor(); });
   document.addEventListener("keydown", (event) => { if (event.key === "Escape") { closeTransactionDetails(); closeTransactionEditor(); closeLedgerModal(); closeProfileModal(); closeLedgerManager(); } });

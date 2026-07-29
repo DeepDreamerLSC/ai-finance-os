@@ -399,7 +399,9 @@ def test_transaction_full_details_can_be_edited_and_moved_between_ledgers(
             "ledgerId": target_ledger["id"],
             "amount": "112.36",
             "type": "income",
-            "category": "差旅报销",
+            "category": "退款报销",
+            "subcategory": "公司报销",
+            "tags": ["工作", "可报销"],
             "note": "停车报销",
             "date": "2026-07-09",
         },
@@ -412,7 +414,9 @@ def test_transaction_full_details_can_be_edited_and_moved_between_ledgers(
         "ledgerId": target_ledger["id"],
         "amount": 112.36,
         "type": "income",
-        "category": "差旅报销",
+        "category": "退款报销",
+        "subcategory": "公司报销",
+        "tags": ["工作", "可报销"],
         "note": "停车报销",
         "date": "2026-07-09",
         "source": "manual",
@@ -420,6 +424,8 @@ def test_transaction_full_details_can_be_edited_and_moved_between_ledgers(
     stored = db_session.scalar(select(Transaction).where(Transaction.id == transaction["id"]))
     assert stored.amount == Decimal("112.36")
     assert stored.ledger_id == target_ledger["id"]
+    assert stored.subcategory == "公司报销"
+    assert stored.tags == ["工作", "可报销"]
 
 
 def test_transaction_cannot_be_moved_to_another_users_ledger(client, login):
