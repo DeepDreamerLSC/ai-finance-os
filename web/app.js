@@ -4,8 +4,8 @@ import {
   validCode,
   validPhone,
   viewFromLocation,
-} from "/auth-utils.js?v=20260729-upload-1";
-import { createVoiceInputController } from "/input-utils.js?v=20260729-upload-1";
+} from "/auth-utils.js?v=20260729-institutional-1";
+import { createVoiceInputController } from "/input-utils.js?v=20260729-institutional-1";
 
 const appState = {
   data: null,
@@ -18,7 +18,7 @@ const appState = {
   turnstileSiteKey: "",
   turnstileToken: "",
 };
-const palette = ["#6d5ef7", "#26c6dd", "#2bc985", "#f2ae3f", "#ff6877"];
+const palette = ["#2f7654", "#86a18f", "#c6b58f", "#9aa8ad", "#d9d7d0"];
 let accessToken = null;
 let refreshPromise = null;
 let resendTimer = null;

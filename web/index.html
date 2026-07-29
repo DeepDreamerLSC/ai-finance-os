@@ -3,10 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#070b14" />
+    <meta name="theme-color" content="#0b1b2b" />
     <title>AI Personal Finance OS</title>
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="/styles.css?v=20260729-upload-1" />
+    <link rel="stylesheet" href="/styles.css?v=20260729-institutional-1" />
   </head>
   <body>
     <div id="auth-loading" class="auth-loading" aria-live="polite">
@@ -16,20 +16,18 @@
 
     <main id="login-screen" class="login-screen hidden">
       <section class="login-story" aria-label="产品介绍">
-        <div class="login-brand"><span class="brand-orb"><span></span></span>FINANCE OS</div>
+        <div class="login-brand"><span class="brand-orb"><span></span></span><span><strong>FINANCE OS</strong><small>AI 个人财务助手</small></span></div>
         <div>
-          <p class="login-kicker">AI PERSONAL FINANCE</p>
-          <h1>自然表达，<br />安心沉淀。</h1>
-          <p>你的账本、交易与原始凭证都只属于你。首次验证后，这台设备将保持登录 30 天。</p>
+          <h1>自然记账，<br />清晰管理。</h1>
+          <p>用一句话记录收支，自动整理账本、凭证和财务分析。</p>
         </div>
-        <div class="login-trust"><span>✓</span> 独立数据空间 · 凭证鉴权访问 · 可随时退出设备</div>
+        <div class="login-trust">账户数据隔离 <i></i> 凭证安全访问 <i></i> 30 天保持登录</div>
       </section>
       <section class="login-panel">
         <form id="login-form" class="login-card">
           <div class="login-card-heading">
-            <p class="eyebrow">SECURE ACCESS</p>
             <h2>欢迎回来</h2>
-            <p>登录后，你的每一笔财务记录都会被安全保存。</p>
+            <p>验证手机号，继续管理你的账本。</p>
           </div>
           <label class="login-field">
             <span>手机号</span>
@@ -41,14 +39,16 @@
           <label class="login-field">
             <span>验证码</span>
             <div class="code-input-wrap">
-              <input id="login-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 位验证码" required />
+              <input id="login-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="请输入 6 位验证码" required />
               <button id="send-code-button" type="button">获取验证码</button>
             </div>
           </label>
           <div id="turnstile-container" class="turnstile-container hidden"></div>
           <p id="login-error" class="login-error" role="alert"></p>
           <button id="login-submit" class="login-submit" type="submit">继续</button>
+          <p class="login-session-note">登录后，这台设备将保持登录 30 天。</p>
           <p class="login-agreement">继续即代表同意<a href="#terms">《用户协议》</a>和<a href="#privacy">《隐私政策》</a></p>
+          <div class="login-security-note">你的账本、交易和凭证均按账户隔离保存。</div>
         </form>
       </section>
     </main>
@@ -265,6 +265,6 @@
         <div id="ledger-manager-list" class="ledger-manager-list"></div>
       </section>
     </div>
-    <script type="module" src="/app.js?v=20260729-upload-1"></script>
+    <script type="module" src="/app.js?v=20260729-institutional-1"></script>
   </body>
 </html>

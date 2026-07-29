@@ -24,6 +24,9 @@ test("1 手机号登录后刷新和重新打开页面仍保持会话", async ({ 
   });
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "欢迎回来" })).toBeVisible();
+  await expect(page.locator(".login-story h1")).toContainText("自然记账");
+  await expect(page.locator(".login-card-heading")).toContainText("验证手机号，继续管理你的账本。");
+  await expect(page.locator(".login-session-note")).toHaveText("登录后，这台设备将保持登录 30 天。");
   await login(page, phoneFor(testInfo));
   await expect(page.locator("#dashboard-view")).toBeVisible();
 
