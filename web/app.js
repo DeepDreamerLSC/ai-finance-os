@@ -29,7 +29,10 @@ const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
 
 function currency(value) {
-  return `¥${Number(value || 0).toLocaleString("zh-CN", { maximumFractionDigits: 0 })}`;
+  return `¥${Number(value || 0).toLocaleString("zh-CN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 }
 
 function dateLabel(value) {
@@ -50,13 +53,6 @@ function sourceLabel(source) {
   if (source === "wechat-import") return "微信账单";
   if (source === "alipay-import") return "支付宝账单";
   return "手动记录";
-}
-
-function exactCurrency(value) {
-  return `¥${Number(value || 0).toLocaleString("zh-CN", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
 }
 
 function escapeHtml(value) {
@@ -143,10 +139,17 @@ async function showApp(user) {
   $("#auth-loading").classList.add("hidden");
   $("#login-screen").classList.add("hidden");
   $("#app-shell").classList.remove("hidden");
-  $("#current-user-phone").textContent = user.masked_phone || "已安全登录";
-  $("#user-avatar").textContent = (user.phone || "F").slice(-1);
+  renderUserIdentity();
   await loadState();
   showView(viewFromLocation(window.location), false);
+}
+
+function renderUserIdentity() {
+  const name = appState.user?.display_name || "理财官";
+  $("#current-user-name").textContent = name;
+  $("#current-user-phone").textContent = `${appState.user?.masked_phone || "已安全登录"} · 数据已按账户隔离`;
+  $("#user-avatar").textContent = name.slice(0, 1).toUpperCase() || "F";
+  $("#page-title").textContent = `你好，${name}`;
 }
 
 function startResendCountdown(seconds = 60) {
@@ -652,6 +655,103 @@ async function createLedgerFromModal(event) {
   }
 }
 
+function openProfileModal() {
+  $("#profile-form-error").textContent = "";
+  $("#profile-name-input").value = appState.user?.display_name || "";
+  $("#profile-phone").textContent = `登录手机号：${appState.user?.masked_phone || "—"}`;
+  $("#profile-modal").classList.remove("hidden");
+  window.setTimeout(() => $("#profile-name-input").focus(), 40);
+}
+
+function closeProfileModal() {
+  $("#profile-modal").classList.add("hidden");
+}
+
+async function saveProfile(event) {
+  event.preventDefault();
+  const displayName = $("#profile-name-input").value.trim();
+  if (!displayName) {
+    $("#profile-form-error").textContent = "请输入用户名";
+    return;
+  }
+  try {
+    appState.user = await api("/api/auth/me", {
+      method: "PATCH",
+      body: JSON.stringify({ display_name: displayName }),
+    });
+    renderUserIdentity();
+    closeProfileModal();
+    notify("用户名已更新");
+  } catch (error) {
+    $("#profile-form-error").textContent = error.message;
+  }
+}
+
+function renderLedgerManager() {
+  const ledgers = appState.data?.ledgers || [];
+  $("#ledger-manager-list").innerHTML = ledgers.length
+    ? ledgers.map((ledger) => `
+      <div class="ledger-manager-row" data-ledger-row="${escapeHtml(ledger.id)}">
+        <input value="${escapeHtml(ledger.name)}" maxlength="80" aria-label="账本名称：${escapeHtml(ledger.name)}" />
+        <button class="ledger-manager-save" type="button" data-rename-ledger="${escapeHtml(ledger.id)}">保存</button>
+        <button class="ledger-manager-delete" type="button" data-delete-ledger="${escapeHtml(ledger.id)}">删除</button>
+      </div>
+    `).join("")
+    : `<div class="ledger-manager-empty">还没有账本，可以关闭后新建一个。</div>`;
+}
+
+function openLedgerManager() {
+  renderLedgerManager();
+  $("#ledger-manager-modal").classList.remove("hidden");
+}
+
+function closeLedgerManager() {
+  $("#ledger-manager-modal").classList.add("hidden");
+}
+
+async function renameLedger(ledgerId) {
+  const row = $(`[data-ledger-row="${CSS.escape(ledgerId)}"]`);
+  const name = row?.querySelector("input")?.value.trim();
+  if (!name) {
+    notify("请输入账本名称");
+    return;
+  }
+  try {
+    const result = await api(`/api/ledgers/${encodeURIComponent(ledgerId)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name }),
+    });
+    appState.data = result.state;
+    renderLedgerSelector();
+    renderLedger();
+    renderLedgerManager();
+    notify(`账本已重命名为 ${result.ledger.name}`);
+  } catch (error) {
+    notify(`重命名失败：${error.message}`);
+  }
+}
+
+async function removeLedger(ledgerId) {
+  const ledger = appState.data.ledgers.find((item) => item.id === ledgerId);
+  if (!ledger) return;
+  const transactionCount = appState.data.transactions.filter((item) => item.ledgerId === ledgerId).length;
+  if (!window.confirm(`删除账本“${ledger.name}”及其中 ${transactionCount} 笔交易？此操作无法撤销。`)) return;
+  try {
+    const result = await api(`/api/ledgers/${encodeURIComponent(ledgerId)}`, { method: "DELETE" });
+    appState.data = result.state;
+    if (appState.selectedLedgerId === ledgerId) appState.selectedLedgerId = result.state.ledgers[0]?.id || null;
+    renderLedgerSelector();
+    renderDashboard();
+    renderChatDashboard();
+    renderLedger();
+    renderReceipts();
+    renderLedgerManager();
+    notify(`账本“${ledger.name}”已删除`);
+  } catch (error) {
+    notify(`删除失败：${error.message}`);
+  }
+}
+
 function renderImportSelectionSummary() {
   const selected = $$("#import-table-body input[data-import-index]:checked").length;
   $("#import-selection-summary").textContent = `已选择 ${selected} 笔交易`;
@@ -673,7 +773,7 @@ function renderImportPreview(preview) {
         <strong>${escapeHtml(tx.note)}</strong>
         <small>${escapeHtml(tx.category)} · ${escapeHtml(tx.date)}${tx.duplicate ? " · 已存在" : ""}</small>
       </span>
-      <strong class="${tx.type === "income" ? "amount-income" : "amount-expense"}">${tx.type === "income" ? "+" : "−"}${exactCurrency(tx.amount)}</strong>
+      <strong class="${tx.type === "income" ? "amount-income" : "amount-expense"}">${tx.type === "income" ? "+" : "−"}${currency(tx.amount)}</strong>
     </label>
   `).join("");
   $("#import-select-all").checked = preview.importableCount > 0;
@@ -779,10 +879,23 @@ function wireEvents() {
   $("#import-ledger-select").addEventListener("change", (event) => selectLedger(event.target.value, true));
   $("#create-ledger-button").addEventListener("click", openLedgerModal);
   $("#new-ledger-button").addEventListener("click", openLedgerModal);
+  $("#manage-ledgers-button").addEventListener("click", openLedgerManager);
   $("#import-create-ledger").addEventListener("click", openLedgerModal);
   $("#ledger-form").addEventListener("submit", createLedgerFromModal);
   $("#close-ledger-modal").addEventListener("click", closeLedgerModal);
   $("#ledger-modal").addEventListener("click", (event) => { if (event.target.matches("[data-close-ledger-modal]")) closeLedgerModal(); });
+  $("#user-avatar").addEventListener("click", openProfileModal);
+  $("#profile-form").addEventListener("submit", saveProfile);
+  $("#close-profile-modal").addEventListener("click", closeProfileModal);
+  $("#profile-modal").addEventListener("click", (event) => { if (event.target.matches("[data-close-profile-modal]")) closeProfileModal(); });
+  $("#close-ledger-manager").addEventListener("click", closeLedgerManager);
+  $("#ledger-manager-modal").addEventListener("click", (event) => { if (event.target.matches("[data-close-ledger-manager]")) closeLedgerManager(); });
+  $("#ledger-manager-list").addEventListener("click", (event) => {
+    const rename = event.target.closest("[data-rename-ledger]");
+    const remove = event.target.closest("[data-delete-ledger]");
+    if (rename) renameLedger(rename.dataset.renameLedger);
+    if (remove) removeLedger(remove.dataset.deleteLedger);
+  });
   $("#chat-form").addEventListener("submit", handleChat);
   $$(".quick-prompts button").forEach((button) => button.addEventListener("click", () => { $("#chat-input").value = button.dataset.prompt; $("#chat-input").focus(); }));
   $("#ledger-search").addEventListener("input", (event) => { appState.query = event.target.value; renderLedger(); });
@@ -823,7 +936,7 @@ function wireEvents() {
   $("#receipt-list").addEventListener("click", (event) => { const apply = event.target.closest("[data-receipt-id]"); const edit = event.target.closest("[data-edit-receipt-id]"); const view = event.target.closest("[data-view-receipt-id]"); if (apply) applyReceipt(apply.dataset.receiptId); if (edit) editReceipt(edit.dataset.editReceiptId); if (view) viewTransactionReceipt(view.dataset.viewReceiptId); });
   $("#close-transaction-modal").addEventListener("click", closeTransactionDetails);
   $("#transaction-modal").addEventListener("click", (event) => { if (event.target.matches("[data-close-modal]")) closeTransactionDetails(); });
-  document.addEventListener("keydown", (event) => { if (event.key === "Escape") { closeTransactionDetails(); closeLedgerModal(); } });
+  document.addEventListener("keydown", (event) => { if (event.key === "Escape") { closeTransactionDetails(); closeLedgerModal(); closeProfileModal(); closeLedgerManager(); } });
 }
 
 async function init() {

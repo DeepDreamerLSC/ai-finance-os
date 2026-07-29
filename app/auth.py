@@ -48,6 +48,10 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
 
 
+class ProfileUpdateRequest(BaseModel):
+    display_name: str
+
+
 @dataclass
 class AuthContext:
     user: User
@@ -513,9 +517,26 @@ def me(auth: AuthContext = Depends(get_current_auth)) -> dict:
     return {
         "id": auth.user.id,
         "phone": auth.user.phone,
+        "display_name": auth.user.display_name,
         "masked_phone": f"{auth.user.phone[:3]}****{auth.user.phone[-4:]}",
         "created_at": auth.user.created_at.isoformat(),
     }
+
+
+@router.patch("/me")
+def update_me(
+    body: ProfileUpdateRequest,
+    auth: AuthContext = Depends(get_current_auth),
+    db: Session = Depends(get_db),
+) -> dict:
+    display_name = re.sub(r"\s+", " ", body.display_name).strip()
+    if not display_name:
+        raise HTTPException(status_code=400, detail="请输入用户名")
+    if len(display_name) > 40:
+        raise HTTPException(status_code=400, detail="用户名不能超过 40 个字符")
+    auth.user.display_name = display_name
+    db.commit()
+    return me(auth)
 
 
 @router.get("/sessions")

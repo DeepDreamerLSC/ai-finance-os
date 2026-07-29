@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+from decimal import Decimal
 
 from openpyxl import Workbook
 from sqlalchemy import select
@@ -107,6 +108,7 @@ def test_parse_alipay_gb18030_keeps_expense_and_refund():
     assert parsed["skippedCount"] == 1
     assert [row["type"] for row in parsed["transactions"]] == ["expense", "income"]
     assert parsed["transactions"][0]["category"] == "餐饮"
+    assert parsed["transactions"][0]["amount"] == 33.03
 
 
 def test_import_preview_commit_and_duplicate_detection(client, login, db_session):
@@ -140,6 +142,7 @@ def test_import_preview_commit_and_duplicate_detection(client, login, db_session
         db_session.scalars(select(Transaction).where(Transaction.ledger_id == ledger_id))
     )
     assert {row.source for row in imported} == {"alipay-import"}
+    assert {row.amount for row in imported} == {Decimal("33.03"), Decimal("3.00")}
 
     duplicate_response = client.post(
         "/api/imports/preview",
@@ -188,6 +191,83 @@ def test_duplicate_ledger_name_is_rejected(client, login):
     )
     assert first.status_code == 201
     assert second.status_code == 400
+
+
+def test_ledger_can_be_renamed_and_deleted_with_its_transactions(client, login, db_session):
+    auth = login("13800138036")
+    ledger = client.post(
+        "/api/ledgers",
+        json={"name": "旧账本"},
+        headers=auth["headers"],
+    ).json()["ledger"]
+    create_transaction = client.post(
+        "/api/transactions/batch",
+        json={
+            "ledgerName": "旧账本",
+            "transactions": [
+                {
+                    "amount": "12.34",
+                    "type": "expense",
+                    "category": "其他",
+                    "note": "待删除记录",
+                    "date": "2026-07-29",
+                }
+            ],
+        },
+        headers=auth["headers"],
+    )
+    assert create_transaction.status_code == 201
+
+    renamed = client.patch(
+        f"/api/ledgers/{ledger['id']}",
+        json={"name": "新账本"},
+        headers=auth["headers"],
+    )
+    assert renamed.status_code == 200
+    assert renamed.json()["ledger"]["name"] == "新账本"
+
+    deleted = client.delete(f"/api/ledgers/{ledger['id']}", headers=auth["headers"])
+    assert deleted.status_code == 200
+    assert not db_session.scalar(select(Ledger).where(Ledger.id == ledger["id"]))
+    assert not db_session.scalar(select(Transaction).where(Transaction.ledger_id == ledger["id"]))
+
+
+def test_ledger_management_is_scoped_to_current_user(client, login):
+    owner = login("13800138037")
+    ledger_id = client.post(
+        "/api/ledgers",
+        json={"name": "仅本人可见"},
+        headers=owner["headers"],
+    ).json()["ledger"]["id"]
+    other = login("13800138038")
+    assert client.patch(
+        f"/api/ledgers/{ledger_id}",
+        json={"name": "越权重命名"},
+        headers=other["headers"],
+    ).status_code == 404
+    assert client.delete(f"/api/ledgers/{ledger_id}", headers=other["headers"]).status_code == 404
+
+
+def test_money_with_more_than_two_decimals_is_rejected_instead_of_rounded(client, login):
+    auth = login("13800138039")
+    response = client.post(
+        "/api/transactions/batch",
+        json={
+            "ledgerName": "精确金额",
+            "transactions": [
+                {
+                    "amount": "12.345",
+                    "type": "expense",
+                    "category": "其他",
+                    "note": "不得四舍五入",
+                    "date": "2026-07-29",
+                }
+            ],
+        },
+        headers=auth["headers"],
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "金额最多保留两位小数"
 
 
 def test_import_rejects_tampered_preview_rows(client, login):

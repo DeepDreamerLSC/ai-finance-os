@@ -3,7 +3,6 @@ from __future__ import annotations
 import csv
 import hashlib
 import io
-import math
 import re
 from datetime import date, datetime
 from decimal import Decimal
@@ -13,6 +12,7 @@ from openpyxl import load_workbook
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.money import money_decimal
 from app.models import Ledger, Transaction
 
 
@@ -112,12 +112,8 @@ def _parse_datetime(value: Any) -> tuple[str, str]:
     raise ValueError("账单中包含无法识别的交易时间")
 
 
-def _parse_amount(value: Any) -> float:
-    text = _clean(value).replace(",", "").replace("¥", "").replace("￥", "")
-    amount = float(text)
-    if not math.isfinite(amount) or amount <= 0:
-        raise ValueError("账单中包含无效金额")
-    return round(amount, 2)
+def _parse_amount(value: Any) -> Decimal:
+    return money_decimal(_clean(value), field="账单金额")
 
 
 def _direction(value: Any) -> str | None:
@@ -153,12 +149,12 @@ def _fingerprint(
     external_id: str,
     occurred_at: str,
     direction: str,
-    amount: float,
+    amount: Decimal,
     counterparty: str,
     product: str,
 ) -> str:
     identity = external_id if external_id and external_id != "/" else "|".join(
-        (occurred_at, direction, f"{amount:.2f}", counterparty, product)
+        (occurred_at, direction, format(amount, ".2f"), counterparty, product)
     )
     return hashlib.sha256(f"{provider}|{identity}".encode()).hexdigest()
 
@@ -223,7 +219,7 @@ def parse_bill(filename: str, content: bytes) -> dict[str, Any]:
             {
                 "fingerprint": fingerprint,
                 "externalId": external_id,
-                "amount": amount,
+                "amount": float(amount),
                 "type": transaction_type,
                 "category": _category(provider, trade_category, text),
                 "note": _note(counterparty, product, trade_category),
@@ -307,21 +303,16 @@ def import_bill_transactions(
             continue
         source = str(item.get("source", ""))
         transaction_type = str(item.get("type", ""))
-        try:
-            amount = float(item.get("amount", 0))
-        except (TypeError, ValueError) as exc:
-            raise ValueError("导入交易金额格式不正确") from exc
+        amount = money_decimal(item.get("amount", 0), field="导入交易金额")
         if source not in IMPORT_SOURCES or transaction_type not in {"income", "expense"}:
             raise ValueError("导入交易格式不正确")
-        if not math.isfinite(amount) or amount <= 0 or amount > 999_999_999_999.99:
-            raise ValueError("导入交易金额超出允许范围")
         try:
             transaction_date = datetime.strptime(str(item.get("date")), "%Y-%m-%d").date()
         except ValueError as exc:
             raise ValueError("导入交易日期格式不正确") from exc
         transaction = Transaction(
             ledger_id=ledger.id,
-            amount=Decimal(str(round(amount, 2))),
+            amount=amount,
             type=transaction_type,
             category=(str(item.get("category") or "其他").strip() or "其他")[:24],
             note=(str(item.get("note") or "账单导入").strip() or "账单导入")[:80],

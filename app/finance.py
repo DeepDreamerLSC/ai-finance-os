@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import base64
-import math
 import mimetypes
 import os
 import re
@@ -14,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.money import money_decimal
 from app.models import Ledger, Receipt, Transaction, User
 
 
@@ -43,11 +43,8 @@ DEMO_RECEIPT_SVG = """\
   <text x="360" y="914" text-anchor="middle" font-family="Arial, sans-serif" font-size="17" fill="#89999b">AI Personal Finance OS Demo</text>
 </svg>
 """
-MAX_TRANSACTION_AMOUNT = 999_999_999_999.99
-
-
 def _money(value: float) -> str:
-    return f"¥{value:,.0f}"
+    return f"¥{Decimal(str(value)):,.2f}"
 
 
 def classify(text: str) -> str:
@@ -80,7 +77,7 @@ def parse_command(text: str) -> dict:
     transactions: list[dict] = []
     separators = "，,；;。"
     for index, match in enumerate(amounts):
-        amount = float(match.group(1).replace(",", "").replace("，", ""))
+        amount = money_decimal(match.group(1).replace(",", "").replace("，", ""))
         previous = max((normalized.rfind(separator, 0, match.start()) for separator in separators), default=-1)
         next_positions = [normalized.find(separator, match.end()) for separator in separators]
         next_positions = [position for position in next_positions if position >= 0]
@@ -94,7 +91,7 @@ def parse_command(text: str) -> dict:
         note = context.replace(match.group(0), "").strip("，,。；; ") or "自然语言记录"
         transactions.append(
             {
-                "amount": amount,
+                "amount": float(amount),
                 "type": transaction_type,
                 "category": category,
                 "note": note[:32],
@@ -164,6 +161,52 @@ def create_ledger(db: Session, user_id: str, name: str) -> dict:
     db.add(ledger)
     db.commit()
     return _ledger_payload(ledger)
+
+
+def update_ledger(db: Session, user_id: str, ledger_id: str, name: str) -> dict | None:
+    ledger = db.scalar(select(Ledger).where(Ledger.id == ledger_id, Ledger.user_id == user_id))
+    if not ledger:
+        return None
+    normalized = re.sub(r"\s+", " ", name).strip()
+    if not normalized:
+        raise ValueError("请输入账本名称")
+    if len(normalized) > 80:
+        raise ValueError("账本名称不能超过 80 个字符")
+    duplicate = db.scalar(
+        select(Ledger.id).where(
+            Ledger.user_id == user_id,
+            Ledger.name == normalized,
+            Ledger.id != ledger_id,
+        )
+    )
+    if duplicate:
+        raise ValueError("同名账本已经存在")
+    ledger.name = normalized
+    db.commit()
+    return _ledger_payload(ledger)
+
+
+def delete_ledger(db: Session, user_id: str, ledger_id: str) -> bool:
+    ledger = db.scalar(select(Ledger).where(Ledger.id == ledger_id, Ledger.user_id == user_id))
+    if not ledger:
+        return False
+    transaction_ids = list(
+        db.scalars(select(Transaction.id).where(Transaction.ledger_id == ledger.id))
+    )
+    if transaction_ids:
+        receipts = list(
+            db.scalars(
+                select(Receipt).where(
+                    Receipt.user_id == user_id,
+                    Receipt.transaction_id.in_(transaction_ids),
+                )
+            )
+        )
+        for receipt in receipts:
+            receipt.transaction_id = None
+    db.delete(ledger)
+    db.commit()
+    return True
 
 
 def seed_user_data(db: Session, user: User) -> None:
@@ -258,12 +301,10 @@ def add_transactions(db: Session, user_id: str, parsed: dict, ledger_name: str |
     ledger = ensure_ledger(db, user_id, name)
     added = []
     for item in parsed.get("transactions", []):
-        amount = float(item["amount"])
-        if not math.isfinite(amount) or amount <= 0 or amount > MAX_TRANSACTION_AMOUNT:
-            raise ValueError("金额必须在 0.01 到 999999999999.99 元之间")
+        amount = money_decimal(item["amount"])
         transaction = Transaction(
             ledger_id=ledger.id,
-            amount=Decimal(str(round(amount, 2))),
+            amount=amount,
             type=item.get("type", "expense"),
             category=str(item.get("category", "其他"))[:24],
             note=str(item.get("note", "自然语言记录"))[:80],
@@ -292,10 +333,7 @@ def update_transaction(db: Session, user_id: str, transaction_id: str, updates: 
     if unknown:
         raise ValueError(f"unsupported fields: {', '.join(sorted(unknown))}")
     if "amount" in updates:
-        amount = float(updates["amount"])
-        if not math.isfinite(amount) or amount <= 0 or amount > MAX_TRANSACTION_AMOUNT:
-            raise ValueError("金额必须在 0.01 到 999999999999.99 元之间")
-        transaction.amount = Decimal(str(round(amount, 2)))
+        transaction.amount = money_decimal(updates["amount"])
     if "type" in updates:
         if updates["type"] not in {"expense", "income"}:
             raise ValueError("type must be expense or income")
@@ -350,9 +388,7 @@ def create_receipt(db: Session, user_id: str, payload: dict) -> dict:
     target.write_bytes(raw_data)
     text = f"{filename} {payload.get('hint', '')}"
     amount_match = re.search(r"([0-9][\d,]*(?:\.\d+)?)\s*元?", text)
-    amount = float(amount_match.group(1).replace(",", "")) if amount_match else 268.0
-    if not math.isfinite(amount) or amount <= 0 or amount > MAX_TRANSACTION_AMOUNT:
-        raise ValueError("凭证金额必须在 0.01 到 999999999999.99 元之间")
+    amount = money_decimal(amount_match.group(1) if amount_match else "268", field="凭证金额")
     receipt = Receipt(
         id=receipt_id,
         user_id=user_id,
@@ -360,7 +396,7 @@ def create_receipt(db: Session, user_id: str, payload: dict) -> dict:
         storage_key=storage_key,
         mime_type=mimetypes.guess_type(filename)[0] or "application/octet-stream",
         merchant="盒马鲜生" if "盒马" in text else "待确认商户",
-        amount=Decimal(str(amount)),
+        amount=amount,
         receipt_date=date.today(),
         category=classify(text),
     )
@@ -383,10 +419,7 @@ def update_receipt(db: Session, user_id: str, receipt_id: str, updates: dict) ->
             raise ValueError("merchant cannot be empty")
         receipt.merchant = merchant[:80]
     if "amount" in updates:
-        amount = float(updates["amount"])
-        if not math.isfinite(amount) or amount <= 0 or amount > MAX_TRANSACTION_AMOUNT:
-            raise ValueError("金额必须在 0.01 到 999999999999.99 元之间")
-        receipt.amount = Decimal(str(round(amount, 2)))
+        receipt.amount = money_decimal(updates["amount"])
     if "category" in updates:
         category = str(updates["category"]).strip()
         if not category:

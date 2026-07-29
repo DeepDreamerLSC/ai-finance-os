@@ -76,8 +76,8 @@
           <button class="nav-item" data-view="receipts"><span class="nav-dot amber"></span>图片凭证</button>
         </nav>
         <div class="sidebar-footer">
-          <div class="privacy-badge"><span class="status-dot"></span><span id="current-user-phone">已安全登录</span></div>
-          <span class="sidebar-footnote">你的账本与凭证已按账户隔离</span>
+          <div class="privacy-badge"><span class="status-dot"></span><span id="current-user-name">已安全登录</span></div>
+          <span id="current-user-phone" class="sidebar-footnote">你的账本与凭证已按账户隔离</span>
           <button id="logout-button" class="logout-button" type="button">退出当前设备</button>
         </div>
       </aside>
@@ -92,7 +92,7 @@
           <div class="topbar-actions">
             <span id="focus-month" class="month-chip">本月</span>
             <button class="icon-button" id="refresh-button" aria-label="刷新数据">↻</button>
-            <div id="user-avatar" class="user-avatar" title="当前账户">F</div>
+            <button id="user-avatar" class="user-avatar" type="button" title="编辑用户名" aria-label="编辑用户名">F</button>
           </div>
         </header>
 
@@ -194,7 +194,7 @@
         </section>
 
         <section id="ledger-view" class="view">
-          <div class="view-heading"><div><p class="eyebrow">智能账本</p><h2>每一笔消费，都有上下文。</h2><p class="subcopy">支持多账本、自动分类、搜索和可编辑明细。</p></div><div class="heading-actions"><button class="secondary-button" id="new-ledger-button" type="button">新建账本</button><button class="primary-button" id="new-ledger-entry">＋ 新建记录</button></div></div>
+          <div class="view-heading"><div><p class="eyebrow">智能账本</p><h2>每一笔消费，都有上下文。</h2><p class="subcopy">支持多账本、自动分类、搜索和可编辑明细。</p></div><div class="heading-actions"><button class="secondary-button" id="manage-ledgers-button" type="button">管理账本</button><button class="secondary-button" id="new-ledger-button" type="button">新建账本</button><button class="primary-button" id="new-ledger-entry">＋ 新建记录</button></div></div>
           <div class="ledger-toolbar surface"><div class="search-wrap"><span>⌕</span><input id="ledger-search" type="search" placeholder="搜索商户、备注或分类" /></div><div class="filter-tabs"><button class="filter-tab active" data-filter="all">全部</button><button class="filter-tab" data-filter="expense">支出</button><button class="filter-tab" data-filter="income">收入</button></div></div>
           <div class="surface ledger-table-wrap"><table class="ledger-table"><thead><tr><th>交易</th><th>分类</th><th>日期</th><th>来源</th><th class="align-right">金额</th><th class="align-right">操作</th></tr></thead><tbody id="ledger-table-body"></tbody></table><div id="ledger-empty" class="empty-state hidden">还没有匹配的交易。</div></div>
         </section>
@@ -222,6 +222,28 @@
         <p id="ledger-form-error" class="login-error" role="alert"></p>
         <button class="primary-button modal-submit" type="submit">创建并切换</button>
       </form>
+    </div>
+    <div id="profile-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="profile-modal-title">
+      <div class="modal-backdrop" data-close-profile-modal></div>
+      <form id="profile-form" class="modal-card compact-modal">
+        <button id="close-profile-modal" class="modal-close" type="button" aria-label="关闭个人资料">×</button>
+        <p class="eyebrow">个人资料</p>
+        <h3 id="profile-modal-title">设置你的用户名</h3>
+        <label class="modal-field"><span>用户名</span><input id="profile-name-input" maxlength="40" autocomplete="nickname" placeholder="例如：小林" required /></label>
+        <p id="profile-phone" class="modal-helper"></p>
+        <p id="profile-form-error" class="login-error" role="alert"></p>
+        <button class="primary-button modal-submit" type="submit">保存用户名</button>
+      </form>
+    </div>
+    <div id="ledger-manager-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="ledger-manager-title">
+      <div class="modal-backdrop" data-close-ledger-manager></div>
+      <section class="modal-card ledger-manager-card">
+        <button id="close-ledger-manager" class="modal-close" type="button" aria-label="关闭账本管理">×</button>
+        <p class="eyebrow">账本管理</p>
+        <h3 id="ledger-manager-title">重命名或删除账本</h3>
+        <p class="modal-helper">删除账本会同时删除其中的交易；已上传的原始凭证仍会保留。</p>
+        <div id="ledger-manager-list" class="ledger-manager-list"></div>
+      </section>
     </div>
     <script type="module" src="/app.js?v=20260729-upload-1"></script>
   </body>

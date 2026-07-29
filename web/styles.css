@@ -164,6 +164,17 @@ select.select-button { appearance: none; cursor: pointer; }
 .modal-field input { min-height: 50px; border: 1px solid var(--line); border-radius: 11px; padding: 0 14px; outline: none; }
 .modal-field input:focus { border-color: var(--cyan); box-shadow: 0 0 0 4px rgba(38,198,221,.1); }
 .modal-submit { width: 100%; margin-top: 8px; }
+.modal-helper { margin: -8px 0 18px; color: var(--faint); font-size: 12px; line-height: 1.6; }
+#profile-phone { margin: 10px 0 18px; }
+.ledger-manager-card { width: min(100%, 620px); }
+.ledger-manager-list { display: grid; gap: 10px; }
+.ledger-manager-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: center; padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--canvas); }
+.ledger-manager-row input { width: 100%; min-height: 42px; border: 1px solid transparent; border-radius: 9px; background: var(--paper); padding: 0 11px; color: var(--ink); font-weight: 700; outline: none; }
+.ledger-manager-row input:focus { border-color: var(--cyan); }
+.ledger-manager-row button { min-height: 38px; border: 0; border-radius: 9px; padding: 0 12px; font-size: 12px; font-weight: 800; }
+.ledger-manager-save { color: #fff; background: var(--ink); }
+.ledger-manager-delete { color: #c43d4e; background: #fff0f2; }
+.ledger-manager-empty { padding: 24px; text-align: center; color: var(--muted); border: 1px dashed var(--line); border-radius: 12px; }
 .voice-button.listening { color: #08111f; background: var(--cyan); border-color: var(--cyan); animation: voice-pulse 1.2s ease-in-out infinite; }
 @keyframes voice-pulse { 50% { box-shadow: 0 0 0 8px rgba(38,198,221,.12); } }
 
@@ -194,6 +205,8 @@ select.select-button { appearance: none; cursor: pointer; }
   .primary-button { width: 100%; }
   .heading-actions { width: 100%; flex-direction: column; align-items: stretch; }
   .heading-actions .secondary-button { width: 100%; }
+  .ledger-manager-row { grid-template-columns: 1fr 1fr; }
+  .ledger-manager-row input { grid-column: 1 / -1; }
   .metric-grid { grid-template-columns: 1fr; gap: 10px; }
   .metric-card { padding: 17px; }
   .metric-card strong { font-size: 31px; }

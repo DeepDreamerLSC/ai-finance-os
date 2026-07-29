@@ -24,11 +24,13 @@ from app.finance import (
     create_ledger,
     create_receipt,
     dashboard,
+    delete_ledger,
     delete_transaction,
     insights_answer,
     parse_command,
     receipt_file,
     update_receipt,
+    update_ledger,
     update_transaction,
 )
 from app.imports import (
@@ -71,6 +73,10 @@ class ReceiptApplyRequest(BaseModel):
 
 
 class LedgerCreateRequest(BaseModel):
+    name: str
+
+
+class LedgerUpdateRequest(BaseModel):
     name: str
 
 
@@ -122,6 +128,33 @@ def ledger_create(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"ledger": ledger, "state": build_state(db, auth.user.id)}
+
+
+@app.patch("/api/ledgers/{ledger_id}")
+def ledger_update(
+    ledger_id: str,
+    body: LedgerUpdateRequest,
+    auth: AuthContext = Depends(get_current_auth),
+    db: Session = Depends(get_db),
+) -> dict:
+    try:
+        ledger = update_ledger(db, auth.user.id, ledger_id, body.name)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if not ledger:
+        raise HTTPException(status_code=404, detail="账本不存在")
+    return {"ledger": ledger, "state": build_state(db, auth.user.id)}
+
+
+@app.delete("/api/ledgers/{ledger_id}")
+def ledger_delete(
+    ledger_id: str,
+    auth: AuthContext = Depends(get_current_auth),
+    db: Session = Depends(get_db),
+) -> dict:
+    if not delete_ledger(db, auth.user.id, ledger_id):
+        raise HTTPException(status_code=404, detail="账本不存在")
+    return {"deleted": ledger_id, "state": build_state(db, auth.user.id)}
 
 
 @app.post("/api/imports/preview")

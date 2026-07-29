@@ -129,6 +129,7 @@ test("5 AI 对话中可以选择账本、导入支付宝账单并自动去重", 
   if (testInfo.project.name === "mobile") await page.locator("#mobile-menu").click();
   await page.locator('[data-view="ledger"]').click();
   await expect(page.locator("#ledger-table-body")).toContainText("盒马");
+  await expect(page.locator("#ledger-table-body")).toContainText("−¥33.03");
 
   if (testInfo.project.name === "mobile") await page.locator("#mobile-menu").click();
   await page.locator('[data-view="chat"]').click();
@@ -156,4 +157,29 @@ test("6 微信语音剪贴板结果会进入对话输入框", async ({ page }, t
   await login(page, phoneFor(testInfo));
   await page.locator("#voice-button").click();
   await expect(page.locator("#chat-input")).toHaveValue("刚刚停车112元");
+});
+
+test("7 用户名可修改，账本可重命名和删除", async ({ page }, testInfo) => {
+  await page.goto("/#ledger");
+  await login(page, phoneFor(testInfo));
+
+  await page.locator("#user-avatar").click();
+  await expect(page.locator("#profile-modal")).toBeVisible();
+  await page.locator("#profile-name-input").fill("林同学");
+  await page.locator("#profile-form").getByRole("button", { name: "保存用户名" }).click();
+  await expect(page.locator("#profile-modal")).toBeHidden();
+  await expect(page.locator("#page-title")).toHaveText("你好，林同学");
+
+  await page.locator("#new-ledger-button").click();
+  await page.locator("#ledger-name-input").fill("待整理账本");
+  await page.locator("#ledger-form").getByRole("button", { name: "创建并切换" }).click();
+  await page.locator("#manage-ledgers-button").click();
+  const row = page.locator('#ledger-manager-list input[value="待整理账本"]').locator("..");
+  await row.locator("input").fill("旅行账本");
+  await row.getByRole("button", { name: "保存" }).click();
+  await expect(page.locator("#ledger-name-button")).toContainText("旅行账本");
+
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.locator('#ledger-manager-list input[value="旅行账本"]').locator("..").getByRole("button", { name: "删除" }).click();
+  await expect(page.locator('#ledger-manager-list input[value="旅行账本"]')).toHaveCount(0);
 });

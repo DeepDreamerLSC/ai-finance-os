@@ -221,3 +221,28 @@ def test_session_listing_and_revocation(client, login):
     revoked = client.delete(f"/api/auth/sessions/{current['id']}", headers=result["headers"])
     assert revoked.status_code == 200
     assert client.get("/api/auth/me", headers=result["headers"]).status_code == 401
+
+
+def test_user_can_update_display_name(client, login, db_session):
+    result = login("13800138014")
+    response = client.patch(
+        "/api/auth/me",
+        json={"display_name": "  小林  财务官  "},
+        headers=result["headers"],
+    )
+    assert response.status_code == 200
+    assert response.json()["display_name"] == "小林 财务官"
+    user = db_session.scalar(select(User).where(User.phone == result["phone"]))
+    assert user.display_name == "小林 财务官"
+    assert client.get("/api/auth/me", headers=result["headers"]).json()["display_name"] == "小林 财务官"
+
+
+def test_display_name_rejects_empty_value(client, login):
+    result = login("13800138015")
+    response = client.patch(
+        "/api/auth/me",
+        json={"display_name": "   "},
+        headers=result["headers"],
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "请输入用户名"
