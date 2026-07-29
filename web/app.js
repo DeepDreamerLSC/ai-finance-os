@@ -5,10 +5,12 @@ import {
   validPhone,
   viewFromLocation,
 } from "/auth-utils.js";
+import { createVoiceInputController } from "/input-utils.js";
 
 const appState = {
   data: null,
   filter: "all",
+  importPreview: null,
   query: "",
   pendingParse: null,
   selectedLedgerId: null,
@@ -43,7 +45,18 @@ function monthLabel(value) {
 }
 
 function sourceLabel(source) {
-  return source === "receipt" ? "图片凭证" : source === "natural-language" ? "AI 对话" : "手动记录";
+  if (source === "receipt") return "图片凭证";
+  if (source === "natural-language") return "AI 对话";
+  if (source === "wechat-import") return "微信账单";
+  if (source === "alipay-import") return "支付宝账单";
+  return "手动记录";
+}
+
+function exactCurrency(value) {
+  return `¥${Number(value || 0).toLocaleString("zh-CN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 }
 
 function escapeHtml(value) {
@@ -297,26 +310,58 @@ function notify(message) {
 function showView(viewName, updateLocation = true) {
   $$(".view").forEach((view) => view.classList.toggle("active-view", view.id === `${viewName}-view`));
   $$(".nav-item").forEach((item) => item.classList.toggle("active", item.dataset.view === viewName));
-  const titles = { dashboard: "下午好，理财官", chat: "AI 财务助手", ledger: "智能账本", receipts: "图片凭证" };
+  const titles = { dashboard: "下午好，理财官", chat: "AI 财务助手", ledger: "智能账本", import: "账单导入", receipts: "图片凭证" };
   $("#page-title").textContent = titles[viewName] || titles.dashboard;
   $(".sidebar").classList.remove("open");
-  if (updateLocation && ["dashboard", "chat", "ledger", "receipts"].includes(viewName)) {
+  if (updateLocation && ["dashboard", "chat", "ledger", "import", "receipts"].includes(viewName)) {
     window.history.replaceState({}, "", `#${viewName}`);
   }
 }
 
+function ledgerStorageKey() {
+  return `finance-selected-ledger:${appState.user?.phone || "current"}`;
+}
+
+function selectedLedger() {
+  return appState.data?.ledgers?.find((ledger) => ledger.id === appState.selectedLedgerId) || null;
+}
+
+function selectLedger(ledgerId, announce = false) {
+  if (!appState.data?.ledgers?.some((ledger) => ledger.id === ledgerId)) return;
+  appState.selectedLedgerId = ledgerId;
+  window.localStorage.setItem(ledgerStorageKey(), ledgerId);
+  renderLedgerSelector();
+  renderLedger();
+  if (announce) notify(`已切换到 ${selectedLedger()?.name || "当前账本"}`);
+}
+
 function renderLedgerSelector() {
   const selector = $("#ledger-name-button");
+  const importSelector = $("#import-ledger-select");
   const ledgers = appState.data?.ledgers || [];
   if (!ledgers.length) {
     selector.innerHTML = "<option value=\"\">暂无账本</option>";
     selector.disabled = true;
+    importSelector.innerHTML = "<option value=\"\">请先创建账本</option>";
+    importSelector.disabled = true;
+    $("#commit-import").disabled = true;
     return;
   }
-  if (!ledgers.some((ledger) => ledger.id === appState.selectedLedgerId)) appState.selectedLedgerId = ledgers[0].id;
+  const storedLedgerId = window.localStorage.getItem(ledgerStorageKey());
+  if (!ledgers.some((ledger) => ledger.id === appState.selectedLedgerId)) {
+    appState.selectedLedgerId = ledgers.some((ledger) => ledger.id === storedLedgerId)
+      ? storedLedgerId
+      : ledgers[0].id;
+  }
+  window.localStorage.setItem(ledgerStorageKey(), appState.selectedLedgerId);
   selector.disabled = false;
-  selector.innerHTML = ledgers.map((ledger) => `<option value="${escapeHtml(ledger.id)}">${escapeHtml(ledger.name)}</option>`).join("");
+  importSelector.disabled = false;
+  const options = ledgers.map((ledger) => `<option value="${escapeHtml(ledger.id)}">${escapeHtml(ledger.name)}</option>`).join("");
+  selector.innerHTML = options;
+  importSelector.innerHTML = options;
   selector.value = appState.selectedLedgerId;
+  importSelector.value = appState.selectedLedgerId;
+  $("#commit-import").disabled = !appState.importPreview;
 }
 
 function renderChatDashboard() {
@@ -485,7 +530,7 @@ function renderParsePreview(parsed) {
     return;
   }
   preview.classList.remove("hidden");
-  preview.innerHTML = `<p class="eyebrow">结构化预览</p><h3>${escapeHtml(parsed.ledger?.name || "当前账本")}</h3>${parsed.transactions.map((tx) => `<div class="preview-line"><span>${escapeHtml(tx.note)}</span><strong>${tx.type === "income" ? "+" : "−"}${currency(tx.amount)}</strong></div><div class="preview-line"><span>分类</span><strong>${escapeHtml(tx.category)}</strong></div>`).join("")}<div class="preview-actions"><button class="cancel-button" id="cancel-preview">取消</button><button class="confirm-button" id="confirm-preview">确认写入</button></div>`;
+  preview.innerHTML = `<p class="eyebrow">结构化预览</p><h3>${escapeHtml(parsed.ledger?.name || selectedLedger()?.name || "当前账本")}</h3>${parsed.transactions.map((tx) => `<div class="preview-line"><span>${escapeHtml(tx.note)}</span><strong>${tx.type === "income" ? "+" : "−"}${currency(tx.amount)}</strong></div><div class="preview-line"><span>分类</span><strong>${escapeHtml(tx.category)}</strong></div>`).join("")}<div class="preview-actions"><button class="cancel-button" id="cancel-preview">取消</button><button class="confirm-button" id="confirm-preview">确认写入</button></div>`;
   $("#confirm-preview").addEventListener("click", confirmParsedTransactions);
   $("#cancel-preview").addEventListener("click", () => preview.classList.add("hidden"));
 }
@@ -493,8 +538,8 @@ function renderParsePreview(parsed) {
 async function confirmParsedTransactions() {
   if (!appState.pendingParse?.transactions?.length) return;
   try {
-    const result = await api("/api/transactions/batch", { method: "POST", body: JSON.stringify({ ledgerName: appState.pendingParse.ledger?.name, transactions: appState.pendingParse.transactions }) });
-    const ledgerName = appState.pendingParse.ledger?.name;
+    const ledgerName = appState.pendingParse.ledger?.name || selectedLedger()?.name;
+    const result = await api("/api/transactions/batch", { method: "POST", body: JSON.stringify({ ledgerName, transactions: appState.pendingParse.transactions }) });
     const createdLedger = result.state?.ledgers?.find((ledger) => ledger.name === ledgerName);
     if (createdLedger) appState.selectedLedgerId = createdLedger.id;
     addMessage(`已写入 ${result.transactions.length} 笔记录，所有字段都可以在智能账本中继续编辑。`);
@@ -561,8 +606,139 @@ function handleReceipt(event) {
 }
 
 async function applyReceipt(receiptId) {
-  try { await api("/api/receipts/apply", { method: "POST", body: JSON.stringify({ receiptId }) }); await loadState(); notify("凭证已关联到交易"); }
+  try { await api("/api/receipts/apply", { method: "POST", body: JSON.stringify({ receiptId, ledgerName: selectedLedger()?.name }) }); await loadState(); notify("凭证已关联到交易"); }
   catch (error) { notify(`关联失败：${error.message}`); }
+}
+
+function openLedgerModal() {
+  $("#ledger-form-error").textContent = "";
+  $("#ledger-name-input").value = "";
+  $("#ledger-modal").classList.remove("hidden");
+  window.setTimeout(() => $("#ledger-name-input").focus(), 40);
+}
+
+function closeLedgerModal() {
+  $("#ledger-modal").classList.add("hidden");
+}
+
+async function createLedgerFromModal(event) {
+  event.preventDefault();
+  const name = $("#ledger-name-input").value.trim();
+  if (!name) {
+    $("#ledger-form-error").textContent = "请输入账本名称";
+    return;
+  }
+  try {
+    const result = await api("/api/ledgers", {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    });
+    appState.data = result.state;
+    appState.selectedLedgerId = result.ledger.id;
+    closeLedgerModal();
+    renderLedgerSelector();
+    renderDashboard();
+    renderChatDashboard();
+    renderLedger();
+    renderReceipts();
+    notify(`已创建并切换到 ${result.ledger.name}`);
+  } catch (error) {
+    $("#ledger-form-error").textContent = error.message;
+  }
+}
+
+function renderImportSelectionSummary() {
+  const selected = $$("#import-table-body input[data-import-index]:checked").length;
+  $("#import-selection-summary").textContent = `已选择 ${selected} 笔交易`;
+  $("#commit-import").disabled = selected === 0 || !appState.selectedLedgerId;
+}
+
+function renderImportPreview(preview) {
+  appState.importPreview = preview;
+  $("#import-preview").classList.remove("hidden");
+  $("#import-preview-title").textContent = preview.fileName;
+  $("#import-provider-badge").textContent = preview.providerLabel;
+  $("#import-count").textContent = preview.importableCount;
+  $("#import-duplicate-count").textContent = preview.duplicateCount;
+  $("#import-skipped-count").textContent = preview.skippedCount;
+  $("#import-table-body").innerHTML = preview.transactions.map((tx, index) => `
+    <tr class="${tx.duplicate ? "is-duplicate" : ""}">
+      <td><input type="checkbox" data-import-index="${index}" ${tx.duplicate ? "disabled" : "checked"} aria-label="选择 ${escapeHtml(tx.note)}" /></td>
+      <td class="transaction-cell"><strong>${escapeHtml(tx.note)}</strong><small>${escapeHtml(tx.paymentMethod || tx.source)}</small></td>
+      <td><span class="category-tag">${escapeHtml(tx.category)}</span></td>
+      <td>${escapeHtml(tx.date)}</td>
+      <td class="align-right ${tx.type === "income" ? "amount-income" : "amount-expense"}">${tx.type === "income" ? "+" : "−"}${exactCurrency(tx.amount)}</td>
+      <td>${tx.duplicate ? "已存在" : escapeHtml(tx.status || "可导入")}</td>
+    </tr>
+  `).join("");
+  $("#import-select-all").checked = preview.importableCount > 0;
+  renderImportSelectionSummary();
+}
+
+async function processBillFile(file) {
+  if (!file) return;
+  if (!/\.(xlsx|csv)$/i.test(file.name)) {
+    notify("请选择微信 XLSX 或支付宝 CSV 文件");
+    return;
+  }
+  if (file.size > 12 * 1024 * 1024) {
+    notify("账单文件不能超过 12MB");
+    return;
+  }
+  const status = $("#bill-upload-status");
+  status.textContent = "正在识别账单格式、退款与重复记录…";
+  const formData = new FormData();
+  formData.append("file", file);
+  try {
+    const preview = await api("/api/imports/preview", { method: "POST", body: formData });
+    renderImportPreview(preview);
+    status.textContent = `已识别 ${preview.totalRows} 笔原始记录，请确认后导入。`;
+    $("#import-preview").scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (error) {
+    status.textContent = `解析失败：${error.message}`;
+    notify(`账单解析失败：${error.message}`);
+  }
+}
+
+async function commitBillImport() {
+  if (!appState.importPreview || !appState.selectedLedgerId) {
+    notify("请先选择或创建目标账本");
+    return;
+  }
+  const selectedTransactions = $$("#import-table-body input[data-import-index]:checked")
+    .map((input) => appState.importPreview.transactions[Number(input.dataset.importIndex)]);
+  if (!selectedTransactions.length) {
+    notify("请至少选择一笔交易");
+    return;
+  }
+  const button = $("#commit-import");
+  button.disabled = true;
+  button.textContent = "正在导入…";
+  try {
+    const result = await api("/api/imports/commit", {
+      method: "POST",
+      body: JSON.stringify({
+        ledgerId: appState.selectedLedgerId,
+        transactions: selectedTransactions,
+      }),
+    });
+    appState.data = result.state;
+    appState.importPreview = null;
+    $("#import-preview").classList.add("hidden");
+    $("#bill-file").value = "";
+    $("#bill-upload-status").textContent = `已成功导入 ${result.importedCount} 笔，重复跳过 ${result.skippedCount} 笔。`;
+    renderLedgerSelector();
+    renderDashboard();
+    renderChatDashboard();
+    renderLedger();
+    renderReceipts();
+    notify(`已导入 ${result.importedCount} 笔到 ${selectedLedger()?.name || "当前账本"}`);
+  } catch (error) {
+    notify(`导入失败：${error.message}`);
+  } finally {
+    button.disabled = false;
+    button.textContent = "确认导入";
+  }
 }
 
 async function loadState() {
@@ -584,13 +760,40 @@ function wireEvents() {
   $$('[data-view-target]').forEach((button) => button.addEventListener("click", () => showView(button.dataset.viewTarget)));
   $("#mobile-menu").addEventListener("click", () => $(".sidebar").classList.toggle("open"));
   $("#refresh-button").addEventListener("click", () => loadState().then(() => notify("数据已刷新")));
-  $("#ledger-name-button").addEventListener("change", (event) => { appState.selectedLedgerId = event.target.value; renderLedger(); notify(`已切换到 ${event.target.options[event.target.selectedIndex].text}`); });
+  $("#ledger-name-button").addEventListener("change", (event) => selectLedger(event.target.value, true));
+  $("#import-ledger-select").addEventListener("change", (event) => selectLedger(event.target.value, true));
+  $("#create-ledger-button").addEventListener("click", openLedgerModal);
+  $("#new-ledger-button").addEventListener("click", openLedgerModal);
+  $("#import-create-ledger").addEventListener("click", openLedgerModal);
+  $("#ledger-form").addEventListener("submit", createLedgerFromModal);
+  $("#close-ledger-modal").addEventListener("click", closeLedgerModal);
+  $("#ledger-modal").addEventListener("click", (event) => { if (event.target.matches("[data-close-ledger-modal]")) closeLedgerModal(); });
   $("#chat-form").addEventListener("submit", handleChat);
   $$(".quick-prompts button").forEach((button) => button.addEventListener("click", () => { $("#chat-input").value = button.dataset.prompt; $("#chat-input").focus(); }));
   $("#ledger-search").addEventListener("input", (event) => { appState.query = event.target.value; renderLedger(); });
   $$(".filter-tab").forEach((button) => button.addEventListener("click", () => { appState.filter = button.dataset.filter; $$(".filter-tab").forEach((tab) => tab.classList.toggle("active", tab === button)); renderLedger(); }));
   $("#new-ledger-entry").addEventListener("click", () => { showView("chat"); $("#chat-input").focus(); });
-  $("#voice-button").addEventListener("click", () => notify("语音入口已预留，接入真实 Provider 后即可直接说话。"));
+  createVoiceInputController({
+    input: $("#chat-input"),
+    button: $("#voice-button"),
+    notify,
+  });
+  $("#bill-file").addEventListener("change", (event) => processBillFile(event.target.files?.[0]));
+  const billDropzone = $("#bill-dropzone");
+  ["dragenter", "dragover"].forEach((eventName) => billDropzone.addEventListener(eventName, (event) => { event.preventDefault(); billDropzone.classList.add("drop-active"); }));
+  ["dragleave", "drop"].forEach((eventName) => billDropzone.addEventListener(eventName, (event) => { event.preventDefault(); billDropzone.classList.remove("drop-active"); }));
+  billDropzone.addEventListener("drop", (event) => processBillFile(event.dataTransfer.files?.[0]));
+  $("#import-select-all").addEventListener("change", (event) => {
+    $$("#import-table-body input[data-import-index]:not(:disabled)").forEach((input) => { input.checked = event.target.checked; });
+    renderImportSelectionSummary();
+  });
+  $("#import-table-body").addEventListener("change", (event) => {
+    if (!event.target.matches("input[data-import-index]")) return;
+    const selectable = $$("#import-table-body input[data-import-index]:not(:disabled)");
+    $("#import-select-all").checked = selectable.length > 0 && selectable.every((input) => input.checked);
+    renderImportSelectionSummary();
+  });
+  $("#commit-import").addEventListener("click", commitBillImport);
   $("#ledger-table-body").addEventListener("click", (event) => {
     const edit = event.target.closest("[data-edit-id]");
     const remove = event.target.closest("[data-delete-id]");
@@ -609,7 +812,7 @@ function wireEvents() {
   $("#receipt-list").addEventListener("click", (event) => { const apply = event.target.closest("[data-receipt-id]"); const edit = event.target.closest("[data-edit-receipt-id]"); const view = event.target.closest("[data-view-receipt-id]"); if (apply) applyReceipt(apply.dataset.receiptId); if (edit) editReceipt(edit.dataset.editReceiptId); if (view) viewTransactionReceipt(view.dataset.viewReceiptId); });
   $("#close-transaction-modal").addEventListener("click", closeTransactionDetails);
   $("#transaction-modal").addEventListener("click", (event) => { if (event.target.matches("[data-close-modal]")) closeTransactionDetails(); });
-  document.addEventListener("keydown", (event) => { if (event.key === "Escape") closeTransactionDetails(); });
+  document.addEventListener("keydown", (event) => { if (event.key === "Escape") { closeTransactionDetails(); closeLedgerModal(); } });
 }
 
 async function init() {

@@ -152,6 +152,20 @@ def ensure_ledger(db: Session, user_id: str, name: str) -> Ledger:
     return ledger
 
 
+def create_ledger(db: Session, user_id: str, name: str) -> dict:
+    normalized = re.sub(r"\s+", " ", name).strip()
+    if not normalized:
+        raise ValueError("请输入账本名称")
+    if len(normalized) > 80:
+        raise ValueError("账本名称不能超过 80 个字符")
+    if db.scalar(select(Ledger.id).where(Ledger.user_id == user_id, Ledger.name == normalized)):
+        raise ValueError("同名账本已经存在")
+    ledger = Ledger(user_id=user_id, name=normalized)
+    db.add(ledger)
+    db.commit()
+    return _ledger_payload(ledger)
+
+
 def seed_user_data(db: Session, user: User) -> None:
     if db.scalar(select(Ledger.id).where(Ledger.user_id == user.id)):
         return

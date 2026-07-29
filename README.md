@@ -15,22 +15,22 @@ AI 原生个人财务助手。当前版本提供手机号验证码登录、30 �
 
 ```bash
 cp .env.example .env
-docker compose -f compose.yaml -f compose.e2e.yaml up --build -d
-docker compose -f compose.yaml -f compose.e2e.yaml ps
+docker compose -f compose.e2e.yaml up --build -d
+docker compose -f compose.e2e.yaml ps
 ```
 
-打开 <http://127.0.0.1:18081>。E2E 配置使用固定测试验证码 `123456`，只用于本地测试，不能用于生产环境。
+打开 <http://127.0.0.1:18082>。E2E 配置使用固定测试验证码 `123456`、独立 PostgreSQL/Redis/上传数据卷，只用于本地测试，不能用于生产环境。
 
 健康检查：
 
 ```bash
-curl --fail http://127.0.0.1:18081/health
+curl --fail http://127.0.0.1:18082/health
 ```
 
 停止服务但保留数据：
 
 ```bash
-docker compose -f compose.yaml -f compose.e2e.yaml down
+docker compose -f compose.e2e.yaml down --volumes
 ```
 
 只有明确要删除 PostgreSQL、Redis 和凭证数据时，才附加 `--volumes`。

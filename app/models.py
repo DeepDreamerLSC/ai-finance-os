@@ -78,6 +78,9 @@ class Transaction(Base):
     note: Mapped[str] = mapped_column(String(80), nullable=False)
     transaction_date: Mapped[date] = mapped_column(Date, nullable=False)
     source: Mapped[str] = mapped_column(String(24), nullable=False, default="manual")
+    import_key: Mapped[str | None] = mapped_column(
+        String(64), unique=True, nullable=True, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, default=utcnow)
 
 

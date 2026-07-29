@@ -8,7 +8,7 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   use: {
-    baseURL: process.env.E2E_BASE_URL || "http://127.0.0.1:18081",
+    baseURL: process.env.E2E_BASE_URL || "http://127.0.0.1:18082",
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },

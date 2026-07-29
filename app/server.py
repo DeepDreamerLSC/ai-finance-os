@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Response, status
+from fastapi import Depends, FastAPI, File, HTTPException, Query, Response, UploadFile, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from redis import Redis
@@ -21,6 +21,7 @@ from app.finance import (
     apply_receipt,
     build_state,
     classify,
+    create_ledger,
     create_receipt,
     dashboard,
     delete_transaction,
@@ -29,6 +30,12 @@ from app.finance import (
     receipt_file,
     update_receipt,
     update_transaction,
+)
+from app.imports import (
+    MAX_IMPORT_FILE_BYTES,
+    import_bill_transactions,
+    parse_bill,
+    preview_bill,
 )
 
 
@@ -62,6 +69,15 @@ class ReceiptApplyRequest(BaseModel):
     ledgerName: str | None = None
 
 
+class LedgerCreateRequest(BaseModel):
+    name: str
+
+
+class ImportCommitRequest(BaseModel):
+    ledgerId: str
+    transactions: list[dict[str, Any]]
+
+
 class UpdateRequest(BaseModel):
     model_config = {"extra": "allow"}
 
@@ -92,6 +108,55 @@ def state(
     db: Session = Depends(get_db),
 ) -> dict:
     return build_state(db, auth.user.id)
+
+
+@app.post("/api/ledgers", status_code=201)
+def ledger_create(
+    body: LedgerCreateRequest,
+    auth: AuthContext = Depends(get_current_auth),
+    db: Session = Depends(get_db),
+) -> dict:
+    try:
+        ledger = create_ledger(db, auth.user.id, body.name)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ledger": ledger, "state": build_state(db, auth.user.id)}
+
+
+@app.post("/api/imports/preview")
+async def import_preview(
+    file: UploadFile = File(...),
+    auth: AuthContext = Depends(get_current_auth),
+    db: Session = Depends(get_db),
+) -> dict:
+    content = await file.read(MAX_IMPORT_FILE_BYTES + 1)
+    try:
+        parsed = parse_bill(file.filename or "账单", content)
+        return preview_bill(db, auth.user.id, parsed)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/imports/commit", status_code=201)
+def import_commit(
+    body: ImportCommitRequest,
+    auth: AuthContext = Depends(get_current_auth),
+    db: Session = Depends(get_db),
+) -> dict:
+    try:
+        imported, skipped = import_bill_transactions(
+            db,
+            auth.user.id,
+            body.ledgerId,
+            body.transactions,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "importedCount": len(imported),
+        "skippedCount": skipped,
+        "state": build_state(db, auth.user.id),
+    }
 
 
 @app.get("/api/insights")
@@ -237,6 +302,11 @@ def javascript() -> FileResponse:
 @app.get("/auth-utils.js")
 def auth_utilities() -> FileResponse:
     return FileResponse(WEB_DIR / "auth-utils.js", media_type="application/javascript")
+
+
+@app.get("/input-utils.js")
+def input_utilities() -> FileResponse:
+    return FileResponse(WEB_DIR / "input-utils.js", media_type="application/javascript")
 
 
 def main() -> None:
