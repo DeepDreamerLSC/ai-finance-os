@@ -27,8 +27,30 @@ test("1 手机号登录后刷新和重新打开页面仍保持会话", async ({ 
   await expect(page.locator(".login-story h1")).toContainText("自然记账");
   await expect(page.locator(".login-card-heading")).toContainText("验证手机号，继续管理你的账本。");
   await expect(page.locator(".login-session-note")).toHaveText("登录后，这台设备将保持登录 30 天。");
+  await page.locator("#login-phone").focus();
+  await expect(page.locator("#login-phone")).toHaveCSS("border-radius", "0px");
+  await expect(page.locator("#login-phone")).toHaveCSS("box-shadow", "none");
   await login(page, phoneFor(testInfo));
   await expect(page.locator("#dashboard-view")).toBeVisible();
+
+  if (testInfo.project.name === "desktop") {
+    await expect(page.locator(".sidebar")).toHaveCSS("position", "sticky");
+    await expect(page.locator(".sidebar")).toHaveCSS("overflow", "hidden");
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    const sidebarState = await page.locator(".sidebar").evaluate((sidebar) => {
+      const sidebarRect = sidebar.getBoundingClientRect();
+      const footerRect = sidebar.querySelector(".sidebar-footer").getBoundingClientRect();
+      return {
+        footerVisible: footerRect.top >= 0 && footerRect.bottom <= window.innerHeight,
+        sidebarBottom: sidebarRect.bottom,
+        sidebarTop: sidebarRect.top,
+        viewportHeight: window.innerHeight,
+      };
+    });
+    expect(sidebarState.footerVisible).toBe(true);
+    expect(Math.abs(sidebarState.sidebarTop)).toBeLessThan(1);
+    expect(Math.abs(sidebarState.sidebarBottom - sidebarState.viewportHeight)).toBeLessThan(1);
+  }
 
   await page.reload();
   await expect(page.locator("#app-shell")).toBeVisible();

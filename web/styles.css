@@ -61,7 +61,25 @@ button { cursor: pointer; }
 .phone-input-wrap, .code-input-wrap { display: flex; align-items: center; min-height: 52px; border: 1px solid var(--line); border-radius: 13px; background: #fbfcfd; transition: border-color .2s, box-shadow .2s, background .2s; }
 .phone-input-wrap:focus-within, .code-input-wrap:focus-within { border-color: var(--cyan); background: #fff; box-shadow: 0 0 0 4px rgba(38,198,221,.1); }
 .phone-input-wrap strong { padding: 0 13px 0 16px; color: var(--ink); font-size: 13px; border-right: 1px solid var(--line); }
-.phone-input-wrap input, .code-input-wrap input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; padding: 0 15px; color: var(--ink); }
+.phone-input-wrap input, .code-input-wrap input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  box-shadow: none;
+  padding: 0 15px;
+  color: var(--ink);
+}
+.phone-input-wrap input:focus, .code-input-wrap input:focus {
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  box-shadow: none;
+}
 .code-input-wrap button { align-self: stretch; flex: 0 0 auto; border: 0; border-left: 1px solid var(--line); background: transparent; padding: 0 15px; color: var(--violet); font-size: 12px; font-weight: 800; }
 .code-input-wrap button:disabled { color: var(--faint); cursor: default; }
 .turnstile-container { margin-top: 18px; min-height: 65px; }
@@ -365,6 +383,17 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .privacy-badge { color: #c5ccc8; }
 .status-dot { background: #6da783; box-shadow: none; }
 .sidebar-footnote, .logout-button { color: #758482; }
+
+@media (min-width: 741px) {
+  .sidebar {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+}
 
 .main-shell { padding: 30px 40px 52px; background: var(--paper); }
 .topbar { margin-bottom: 12px; padding-bottom: 0; border-bottom: 0; }

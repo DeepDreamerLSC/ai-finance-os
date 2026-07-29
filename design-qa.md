@@ -45,6 +45,17 @@
 - Dashboard, login, ledger, receipts, and AI entry screenshots show consistent spacing, borders, typography, and responsive behavior.
 - Browser console errors: none.
 
+### Iteration 4
+
+- Request: remove the browser-shaped inner focus pill from the phone field and keep every desktop sidebar control fixed in the viewport.
+- Same-state focus comparison at 1280 × 720: `/private/tmp/finance-phone-focus-comparison.png`.
+- Before: the focused native telephone input rendered a second rounded outline inside the designed field.
+- After: the native input has `appearance: none`, zero radius, no outline, and no shadow; only the accessible outer field focus treatment remains.
+- Desktop scroll evidence: `/private/tmp/finance-sidebar-fixed-after-scroll.png`.
+- At page scroll Y=416, the sidebar remains at Y=0 with height 720; its footer ends at Y=696 and is fully visible.
+- Mobile regression check at 390 × 844: the sidebar remains an off-canvas fixed drawer, the main content remains 390 px wide, and page scroll width remains 390 px.
+- Automated verification: 45 backend tests, 6 frontend tests, and 16 desktop/mobile E2E tests passed.
+
 ## Final visual judgment
 
 - Palette: matches the selected private-banking direction with deep navy, warm ivory, forest green, muted brass, and soft gray.
