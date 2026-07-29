@@ -85,7 +85,7 @@ test("4 不同用户的账本内容互不可见", async ({ browser }, testInfo) 
   await contextB.close();
 });
 
-test("5 AI 对话中可以选择账本、导入支付宝账单并自动去重", async ({ page }, testInfo) => {
+test("5 账单导入会自动去重并对用户修改过的记录二次确认", async ({ page }, testInfo) => {
   await page.goto("/#chat");
   await login(page, phoneFor(testInfo));
   await expect(page.locator("#chat-view")).toBeVisible();
@@ -95,6 +95,7 @@ test("5 AI 对话中可以选择账本、导入支付宝账单并自动去重", 
   const csv = [
     "支付宝交易明细",
     "交易时间,交易分类,交易对方,对方账号,商品说明,收/支,金额,收/付款方式,交易状态,交易订单号,商家订单号,备注",
+    "2026-07-28 19:41:15,餐饮美食,盒马,/,生鲜商品,支出,33.03,信用卡,交易成功,e2e-ali-order-1,e2e-merchant-1,",
     "2026-07-28 19:41:15,餐饮美食,盒马,/,生鲜商品,支出,33.03,信用卡,交易成功,e2e-ali-order-1,e2e-merchant-1,",
     "2026-07-28 18:00:00,账户转存,余额宝,/,转入,不计收支,500.00,余额,交易成功,e2e-neutral-1,e2e-merchant-2,",
   ].join("\r\n");
@@ -116,6 +117,8 @@ test("5 AI 对话中可以选择账本、导入支付宝账单并自动去重", 
   await previewRequest;
   await expect(page.locator("#import-preview")).toBeVisible();
   await expect(page.locator("#import-count")).toHaveText("1");
+  await expect(page.locator("#import-duplicate-count")).toHaveText("1");
+  await expect(page.locator("#import-conflict-count")).toHaveText("0");
   await expect(page.locator("#import-skipped-count")).toHaveText("1");
   await page.locator("#import-create-ledger").click();
   await page.locator("#ledger-name-input").fill("支付宝导入测试");
@@ -124,12 +127,22 @@ test("5 AI 对话中可以选择账本、导入支付宝账单并自动去重", 
   await expect(page.locator("#import-ledger-select")).toHaveValue(/.+/);
   await expect(page.locator("#import-ledger-select")).toContainText("支付宝导入测试");
   await page.locator("#commit-import").click();
-  await expect(page.locator("#bill-upload-status")).toContainText("已成功导入 1 笔");
+  await expect(page.locator("#bill-upload-status")).toContainText("新增 1 笔，更新 0 笔");
 
   if (testInfo.project.name === "mobile") await page.locator("#mobile-menu").click();
   await page.locator('[data-view="ledger"]').click();
   await expect(page.locator("#ledger-table-body")).toContainText("盒马");
   await expect(page.locator("#ledger-table-body")).toContainText("−¥33.03");
+  const importedRow = page.locator("#ledger-table-body tr").filter({ hasText: "盒马" });
+  await expect(importedRow).toHaveCount(1);
+  await importedRow.getByRole("button", { name: "编辑" }).click();
+  await page.locator("#transaction-edit-note").fill("盒马调整");
+  await page.locator("#transaction-edit-amount").fill("44.04");
+  await page.locator("#transaction-edit-date").fill("2026-07-29");
+  await page.locator("#transaction-edit-form").getByRole("button", { name: "保存全部修改" }).click();
+  await expect(page.locator("#transaction-edit-modal")).toBeHidden();
+  await expect(page.locator("#ledger-table-body")).toContainText("盒马调整");
+  await expect(page.locator("#ledger-table-body")).toContainText("−¥44.04");
 
   if (testInfo.project.name === "mobile") await page.locator("#mobile-menu").click();
   await page.locator('[data-view="chat"]').click();
@@ -139,6 +152,31 @@ test("5 AI 对话中可以选择账本、导入支付宝账单并自动去重", 
     buffer: Buffer.from(csv, "utf8"),
   });
   await expect(page.locator("#import-duplicate-count")).toHaveText("1");
+  await expect(page.locator("#import-conflict-count")).toHaveText("1");
+  await expect(page.locator(".import-conflict-row")).toContainText("系统版本");
+  await expect(page.locator(".import-conflict-row")).toContainText("文件版本");
+  await expect(page.locator(".import-conflict-row")).toContainText("¥44.04");
+  await expect(page.locator(".import-conflict-row")).toContainText("¥33.03");
+  await expect(page.locator("#commit-import")).toBeDisabled();
+  await page.locator("select[data-conflict-index]").selectOption("replace-existing");
+  await expect(page.locator("#commit-import")).toBeEnabled();
+  await page.locator("#commit-import").click();
+  await expect(page.locator("#bill-upload-status")).toContainText("新增 0 笔，更新 1 笔");
+
+  if (testInfo.project.name === "mobile") await page.locator("#mobile-menu").click();
+  await page.locator('[data-view="ledger"]').click();
+  await expect(page.locator("#ledger-table-body")).toContainText("盒马 · 生鲜商品");
+  await expect(page.locator("#ledger-table-body")).toContainText("−¥33.03");
+
+  if (testInfo.project.name === "mobile") await page.locator("#mobile-menu").click();
+  await page.locator('[data-view="chat"]').click();
+  await page.locator("#bill-file").setInputFiles({
+    name: "支付宝交易明细.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(csv, "utf8"),
+  });
+  await expect(page.locator("#import-duplicate-count")).toHaveText("2");
+  await expect(page.locator("#import-conflict-count")).toHaveText("0");
   await expect(page.locator("#commit-import")).toBeDisabled();
 });
 

@@ -80,7 +80,7 @@ def make_wechat_xlsx() -> bytes:
     return output.getvalue()
 
 
-def make_alipay_csv() -> bytes:
+def make_alipay_csv(*, duplicate_expense: bool = False) -> bytes:
     rows = [
         "支付宝交易明细",
         "交易时间,交易分类,交易对方,对方账号,商品说明,收/支,金额,收/付款方式,交易状态,交易订单号,商家订单号,备注",
@@ -88,6 +88,8 @@ def make_alipay_csv() -> bytes:
         "2026-07-28 18:00:00,退款,盒马,/,退款,收入,3.00,信用卡,退款成功,ali-order-2,merchant-2,",
         "2026-07-28 17:00:00,账户转存,余额宝,/,转入,不计收支,500.00,余额,交易成功,ali-neutral-1,merchant-3,",
     ]
+    if duplicate_expense:
+        rows.insert(3, rows[2])
     return "\r\n".join(rows).encode("gb18030")
 
 
@@ -130,6 +132,7 @@ def test_import_preview_commit_and_duplicate_detection(client, login, db_session
     preview = preview_response.json()
     assert preview["importableCount"] == 2
     assert preview["duplicateCount"] == 0
+    assert preview["conflictCount"] == 0
 
     commit_response = client.post(
         "/api/imports/commit",
@@ -138,6 +141,7 @@ def test_import_preview_commit_and_duplicate_detection(client, login, db_session
     )
     assert commit_response.status_code == 201, commit_response.text
     assert commit_response.json()["importedCount"] == 2
+    assert commit_response.json()["updatedCount"] == 0
     imported = list(
         db_session.scalars(select(Transaction).where(Transaction.ledger_id == ledger_id))
     )
@@ -152,6 +156,113 @@ def test_import_preview_commit_and_duplicate_detection(client, login, db_session
     assert duplicate_response.status_code == 200
     assert duplicate_response.json()["duplicateCount"] == 2
     assert duplicate_response.json()["importableCount"] == 0
+    assert duplicate_response.json()["conflictCount"] == 0
+
+
+def test_import_preview_deduplicates_repeated_rows_inside_one_file(client, login):
+    auth = login("13800138041")
+    preview_response = client.post(
+        "/api/imports/preview",
+        files={
+            "file": (
+                "支付宝重复交易.csv",
+                make_alipay_csv(duplicate_expense=True),
+                "text/csv",
+            )
+        },
+        headers=auth["headers"],
+    )
+    assert preview_response.status_code == 200, preview_response.text
+    preview = preview_response.json()
+    assert preview["totalRows"] == 4
+    assert preview["importableCount"] == 2
+    assert preview["duplicateCount"] == 1
+    assert preview["conflictCount"] == 0
+    duplicate = next(row for row in preview["transactions"] if row["duplicate"])
+    assert duplicate["duplicateReason"] == "文件内重复"
+
+
+def test_import_conflict_requires_explicit_version_choice(client, login, db_session):
+    auth = login("13800138042")
+    ledger_id = client.post(
+        "/api/ledgers",
+        json={"name": "导入冲突测试"},
+        headers=auth["headers"],
+    ).json()["ledger"]["id"]
+    preview = client.post(
+        "/api/imports/preview",
+        files={"file": ("支付宝交易明细.csv", make_alipay_csv(), "text/csv")},
+        headers=auth["headers"],
+    ).json()
+    committed = client.post(
+        "/api/imports/commit",
+        json={"ledgerId": ledger_id, "transactions": preview["transactions"]},
+        headers=auth["headers"],
+    )
+    assert committed.status_code == 201, committed.text
+
+    transaction = db_session.scalar(
+        select(Transaction).where(
+            Transaction.ledger_id == ledger_id,
+            Transaction.note == "盒马 · 生鲜商品",
+        )
+    )
+    changed = client.patch(
+        f"/api/transactions/{transaction.id}",
+        json={
+            "ledgerId": ledger_id,
+            "amount": "44.04",
+            "type": "expense",
+            "category": "购物",
+            "note": "盒马调整",
+            "date": "2026-07-29",
+        },
+        headers=auth["headers"],
+    )
+    assert changed.status_code == 200, changed.text
+
+    conflict_preview = client.post(
+        "/api/imports/preview",
+        files={"file": ("支付宝交易明细.csv", make_alipay_csv(), "text/csv")},
+        headers=auth["headers"],
+    ).json()
+    assert conflict_preview["conflictCount"] == 1
+    assert conflict_preview["duplicateCount"] == 1
+    conflict = next(row for row in conflict_preview["transactions"] if row["conflict"])
+    assert conflict["amount"] == 33.03
+    assert conflict["existingTransaction"]["amount"] == 44.04
+    assert conflict["existingTransaction"]["note"] == "盒马调整"
+
+    keep_existing = client.post(
+        "/api/imports/commit",
+        json={
+            "ledgerId": ledger_id,
+            "transactions": [{**conflict, "resolution": "keep-existing"}],
+        },
+        headers=auth["headers"],
+    )
+    assert keep_existing.status_code == 201, keep_existing.text
+    assert keep_existing.json()["updatedCount"] == 0
+    assert keep_existing.json()["skippedCount"] == 1
+    db_session.refresh(transaction)
+    assert transaction.amount == Decimal("44.04")
+    assert transaction.note == "盒马调整"
+
+    replace_with_file = client.post(
+        "/api/imports/commit",
+        json={
+            "ledgerId": ledger_id,
+            "transactions": [{**conflict, "resolution": "replace-existing"}],
+        },
+        headers=auth["headers"],
+    )
+    assert replace_with_file.status_code == 201, replace_with_file.text
+    assert replace_with_file.json()["updatedCount"] == 1
+    db_session.refresh(transaction)
+    assert transaction.amount == Decimal("33.03")
+    assert transaction.category == "餐饮"
+    assert transaction.note == "盒马 · 生鲜商品"
+    assert transaction.transaction_date.isoformat() == "2026-07-28"
 
 
 def test_import_cannot_target_another_users_ledger(client, login, db_session):

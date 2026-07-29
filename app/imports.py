@@ -163,6 +163,51 @@ def _user_import_key(user_id: str, fingerprint: str) -> str:
     return hashlib.sha256(f"{user_id}|{fingerprint}".encode()).hexdigest()
 
 
+def _import_values(item: dict[str, Any]) -> dict[str, Any]:
+    source = str(item.get("source", ""))
+    transaction_type = str(item.get("type", ""))
+    if source not in IMPORT_SOURCES or transaction_type not in {"income", "expense"}:
+        raise ValueError("导入交易格式不正确")
+    try:
+        transaction_date = datetime.strptime(str(item.get("date")), "%Y-%m-%d").date()
+    except ValueError as exc:
+        raise ValueError("导入交易日期格式不正确") from exc
+    return {
+        "amount": money_decimal(item.get("amount", 0), field="导入交易金额"),
+        "type": transaction_type,
+        "category": (str(item.get("category") or "其他").strip() or "其他")[:24],
+        "note": (str(item.get("note") or "账单导入").strip() or "账单导入")[:80],
+        "date": transaction_date,
+        "source": source,
+    }
+
+
+def _matches_import(transaction: Transaction, item: dict[str, Any]) -> bool:
+    values = _import_values(item)
+    return (
+        transaction.amount == values["amount"]
+        and transaction.type == values["type"]
+        and transaction.category == values["category"]
+        and transaction.note == values["note"]
+        and transaction.transaction_date == values["date"]
+        and transaction.source == values["source"]
+    )
+
+
+def _existing_payload(transaction: Transaction, ledger_name: str) -> dict[str, Any]:
+    return {
+        "id": transaction.id,
+        "ledgerId": transaction.ledger_id,
+        "ledgerName": ledger_name,
+        "amount": float(transaction.amount),
+        "type": transaction.type,
+        "category": transaction.category,
+        "note": transaction.note,
+        "date": transaction.transaction_date.isoformat(),
+        "source": transaction.source,
+    }
+
+
 def parse_bill(filename: str, content: bytes) -> dict[str, Any]:
     if not content:
         raise ValueError("账单文件为空")
@@ -246,25 +291,61 @@ def parse_bill(filename: str, content: bytes) -> dict[str, Any]:
 def preview_bill(db: Session, user_id: str, parsed: dict[str, Any]) -> dict[str, Any]:
     transactions = parsed["transactions"]
     keys = [_user_import_key(user_id, item["fingerprint"]) for item in transactions]
-    existing = set(
-        db.scalars(
-            select(Transaction.import_key)
-            .join(Ledger, Transaction.ledger_id == Ledger.id)
-            .where(Ledger.user_id == user_id, Transaction.import_key.in_(keys))
-        )
-    )
+    existing_rows = db.execute(
+        select(Transaction, Ledger.name)
+        .join(Ledger, Transaction.ledger_id == Ledger.id)
+        .where(Ledger.user_id == user_id, Transaction.import_key.in_(keys))
+    ).all()
+    existing = {
+        transaction.import_key: (transaction, ledger_name)
+        for transaction, ledger_name in existing_rows
+        if transaction.import_key
+    }
     preview_rows = []
     duplicate_count = 0
+    conflict_count = 0
+    importable_count = 0
+    seen_keys: set[str] = set()
     for item, import_key in zip(transactions, keys, strict=True):
-        duplicate = import_key in existing
+        file_duplicate = import_key in seen_keys
+        seen_keys.add(import_key)
+        existing_row = existing.get(import_key)
+        duplicate = False
+        conflict = False
+        duplicate_reason = ""
+        existing_payload = None
+        if file_duplicate:
+            duplicate = True
+            duplicate_reason = "文件内重复"
+        elif existing_row:
+            transaction, ledger_name = existing_row
+            if _matches_import(transaction, item):
+                duplicate = True
+                duplicate_reason = "系统内已存在"
+            else:
+                conflict = True
+                existing_payload = _existing_payload(transaction, ledger_name)
+        else:
+            importable_count += 1
         duplicate_count += int(duplicate)
+        conflict_count += int(conflict)
         row = {key: value for key, value in item.items() if key != "fingerprint"}
-        row.update({"importKey": import_key, "duplicate": duplicate})
+        row.update(
+            {
+                "importKey": import_key,
+                "duplicate": duplicate,
+                "duplicateReason": duplicate_reason,
+                "conflict": conflict,
+            }
+        )
+        if existing_payload:
+            row["existingTransaction"] = existing_payload
         preview_rows.append(row)
     return {
         **{key: value for key, value in parsed.items() if key != "transactions"},
-        "importableCount": len(preview_rows) - duplicate_count,
+        "importableCount": importable_count,
         "duplicateCount": duplicate_count,
+        "conflictCount": conflict_count,
         "transactions": preview_rows,
     }
 
@@ -274,7 +355,7 @@ def import_bill_transactions(
     user_id: str,
     ledger_id: str,
     transactions: list[dict[str, Any]],
-) -> tuple[list[Transaction], int]:
+) -> tuple[list[Transaction], list[Transaction], int]:
     ledger = db.scalar(select(Ledger).where(Ledger.id == ledger_id, Ledger.user_id == user_id))
     if not ledger:
         raise ValueError("目标账本不存在")
@@ -289,11 +370,24 @@ def import_bill_transactions(
         if not re.fullmatch(r"[0-9a-f]{64}", import_key):
             raise ValueError("导入交易标识无效，请重新预览账单")
         requested_keys.add(import_key)
-    existing = set(
-        db.scalars(select(Transaction.import_key).where(Transaction.import_key.in_(requested_keys)))
+    existing_rows = list(
+        db.scalars(
+            select(Transaction)
+            .join(Ledger, Transaction.ledger_id == Ledger.id)
+            .where(
+                Ledger.user_id == user_id,
+                Transaction.import_key.in_(requested_keys),
+            )
+        )
     )
+    existing = {
+        transaction.import_key: transaction
+        for transaction in existing_rows
+        if transaction.import_key
+    }
     added: list[Transaction] = []
-    seen = set(existing)
+    updated: list[Transaction] = []
+    seen: set[str] = set()
     skipped = 0
 
     for item in transactions:
@@ -301,28 +395,39 @@ def import_bill_transactions(
         if import_key in seen:
             skipped += 1
             continue
-        source = str(item.get("source", ""))
-        transaction_type = str(item.get("type", ""))
-        amount = money_decimal(item.get("amount", 0), field="导入交易金额")
-        if source not in IMPORT_SOURCES or transaction_type not in {"income", "expense"}:
-            raise ValueError("导入交易格式不正确")
-        try:
-            transaction_date = datetime.strptime(str(item.get("date")), "%Y-%m-%d").date()
-        except ValueError as exc:
-            raise ValueError("导入交易日期格式不正确") from exc
+        seen.add(import_key)
+        values = _import_values(item)
+        existing_transaction = existing.get(import_key)
+        resolution = str(item.get("resolution") or "")
+        if existing_transaction:
+            if resolution == "keep-existing" or not resolution:
+                skipped += 1
+                continue
+            if resolution != "replace-existing":
+                raise ValueError("冲突处理方式无效，请重新确认")
+            existing_transaction.ledger_id = ledger.id
+            existing_transaction.amount = values["amount"]
+            existing_transaction.type = values["type"]
+            existing_transaction.category = values["category"]
+            existing_transaction.note = values["note"]
+            existing_transaction.transaction_date = values["date"]
+            existing_transaction.source = values["source"]
+            updated.append(existing_transaction)
+            continue
+        if resolution:
+            raise ValueError("冲突记录状态已变化，请重新预览账单")
         transaction = Transaction(
             ledger_id=ledger.id,
-            amount=amount,
-            type=transaction_type,
-            category=(str(item.get("category") or "其他").strip() or "其他")[:24],
-            note=(str(item.get("note") or "账单导入").strip() or "账单导入")[:80],
-            transaction_date=transaction_date,
-            source=source,
+            amount=values["amount"],
+            type=values["type"],
+            category=values["category"],
+            note=values["note"],
+            transaction_date=values["date"],
+            source=values["source"],
             import_key=import_key,
         )
         db.add(transaction)
         added.append(transaction)
-        seen.add(import_key)
 
     db.commit()
-    return added, skipped
+    return added, updated, skipped

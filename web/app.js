@@ -795,8 +795,26 @@ async function removeLedger(ledgerId) {
 
 function renderImportSelectionSummary() {
   const selected = $$("#import-table-body input[data-import-index]:checked").length;
-  $("#import-selection-summary").textContent = `已选择 ${selected} 笔交易`;
-  $("#commit-import").disabled = selected === 0 || !appState.selectedLedgerId;
+  const conflictSelects = $$("#import-table-body select[data-conflict-index]");
+  const unresolved = conflictSelects.filter((select) => !select.value).length;
+  const resolved = conflictSelects.length - unresolved;
+  $("#import-selection-summary").textContent = conflictSelects.length
+    ? `已选择 ${selected} 笔新增 · 已确认 ${resolved}/${conflictSelects.length} 笔冲突`
+    : `已选择 ${selected} 笔交易`;
+  $("#commit-import").disabled = !appState.selectedLedgerId
+    || unresolved > 0
+    || (selected === 0 && conflictSelects.length === 0);
+}
+
+function importVersionCard(label, transaction, ledgerName = "") {
+  return `
+    <div class="import-version-card">
+      <span>${label}</span>
+      <strong>${escapeHtml(transaction.note)}</strong>
+      <small>${escapeHtml(transaction.category)} · ${escapeHtml(transaction.date)}${ledgerName ? ` · ${escapeHtml(ledgerName)}` : ""}</small>
+      <b class="${transaction.type === "income" ? "amount-income" : "amount-expense"}">${transaction.type === "income" ? "+" : "−"}${currency(transaction.amount)}</b>
+    </div>
+  `;
 }
 
 function renderImportPreview(preview) {
@@ -806,17 +824,42 @@ function renderImportPreview(preview) {
   $("#import-provider-badge").textContent = preview.providerLabel;
   $("#import-count").textContent = preview.importableCount;
   $("#import-duplicate-count").textContent = preview.duplicateCount;
+  $("#import-conflict-count").textContent = preview.conflictCount;
   $("#import-skipped-count").textContent = preview.skippedCount;
-  $("#import-table-body").innerHTML = preview.transactions.map((tx, index) => `
-    <label class="import-confirm-row ${tx.duplicate ? "is-duplicate" : ""}">
-      <input type="checkbox" data-import-index="${index}" ${tx.duplicate ? "disabled" : "checked"} aria-label="选择 ${escapeHtml(tx.note)}" />
-      <span class="import-confirm-main">
-        <strong>${escapeHtml(tx.note)}</strong>
-        <small>${escapeHtml(tx.category)} · ${escapeHtml(tx.date)}${tx.duplicate ? " · 已存在" : ""}</small>
-      </span>
-      <strong class="${tx.type === "income" ? "amount-income" : "amount-expense"}">${tx.type === "income" ? "+" : "−"}${currency(tx.amount)}</strong>
-    </label>
-  `).join("");
+  $("#import-table-body").innerHTML = preview.transactions.map((tx, index) => {
+    if (tx.conflict) {
+      return `
+        <section class="import-conflict-row">
+          <div class="import-conflict-heading">
+            <span class="import-conflict-badge">需二次确认</span>
+            <strong>检测到系统记录已被修改</strong>
+          </div>
+          <div class="import-conflict-versions">
+            ${importVersionCard("系统版本", tx.existingTransaction, tx.existingTransaction.ledgerName)}
+            ${importVersionCard("文件版本", tx, selectedLedger()?.name || "目标账本")}
+          </div>
+          <label class="import-conflict-choice">
+            <span>这笔交易保留哪一条？</span>
+            <select data-conflict-index="${index}" aria-label="选择 ${escapeHtml(tx.note)} 保留版本">
+              <option value="">请选择保留版本</option>
+              <option value="keep-existing">保留系统版本</option>
+              <option value="replace-existing">使用文件版本</option>
+            </select>
+          </label>
+        </section>
+      `;
+    }
+    return `
+      <label class="import-confirm-row ${tx.duplicate ? "is-duplicate" : ""}">
+        <input type="checkbox" data-import-index="${index}" ${tx.duplicate ? "disabled" : "checked"} aria-label="选择 ${escapeHtml(tx.note)}" />
+        <span class="import-confirm-main">
+          <strong>${escapeHtml(tx.note)}</strong>
+          <small>${escapeHtml(tx.category)} · ${escapeHtml(tx.date)}${tx.duplicate ? ` · ${escapeHtml(tx.duplicateReason)}` : ""}</small>
+        </span>
+        <strong class="${tx.type === "income" ? "amount-income" : "amount-expense"}">${tx.type === "income" ? "+" : "−"}${currency(tx.amount)}</strong>
+      </label>
+    `;
+  }).join("");
   $("#import-select-all").checked = preview.importableCount > 0;
   renderImportSelectionSummary();
 }
@@ -844,8 +887,8 @@ async function processBillFile(file) {
   try {
     const preview = await api("/api/imports/preview", { method: "POST", body: formData });
     renderImportPreview(preview);
-    status.textContent = `已识别 ${preview.totalRows} 笔原始记录，请在右侧选择账本并确认。`;
-    addMessage(`已识别 ${preview.importableCount} 笔可导入记录，请在右侧选择账本并确认。`);
+    status.textContent = `已识别 ${preview.totalRows} 笔原始记录，其中 ${preview.conflictCount} 笔需要二次确认。`;
+    addMessage(`已识别 ${preview.importableCount} 笔可新增记录、${preview.conflictCount} 笔冲突记录，请在右侧确认。`);
     $("#import-preview").scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (error) {
     $("#bill-file").value = "";
@@ -862,7 +905,17 @@ async function commitBillImport() {
   }
   const selectedTransactions = $$("#import-table-body input[data-import-index]:checked")
     .map((input) => appState.importPreview.transactions[Number(input.dataset.importIndex)]);
-  if (!selectedTransactions.length) {
+  const conflictSelects = $$("#import-table-body select[data-conflict-index]");
+  if (conflictSelects.some((select) => !select.value)) {
+    notify("请先确认每一笔冲突记录保留哪个版本");
+    return;
+  }
+  const resolvedTransactions = conflictSelects.map((select) => ({
+    ...appState.importPreview.transactions[Number(select.dataset.conflictIndex)],
+    resolution: select.value,
+  }));
+  const transactions = [...selectedTransactions, ...resolvedTransactions];
+  if (!transactions.length) {
     notify("请至少选择一笔交易");
     return;
   }
@@ -874,21 +927,21 @@ async function commitBillImport() {
       method: "POST",
       body: JSON.stringify({
         ledgerId: appState.selectedLedgerId,
-        transactions: selectedTransactions,
+        transactions,
       }),
     });
     appState.data = result.state;
     appState.importPreview = null;
     $("#import-preview").classList.add("hidden");
     $("#bill-file").value = "";
-    $("#bill-upload-status").textContent = `已成功导入 ${result.importedCount} 笔，重复跳过 ${result.skippedCount} 笔。`;
+    $("#bill-upload-status").textContent = `新增 ${result.importedCount} 笔，更新 ${result.updatedCount} 笔，跳过 ${result.skippedCount} 笔。`;
     renderLedgerSelector();
     renderDashboard();
     renderChatDashboard();
     renderLedger();
     renderReceipts();
-    addMessage(`已导入 ${result.importedCount} 笔到 ${selectedLedger()?.name || "当前账本"}。`);
-    notify(`已导入 ${result.importedCount} 笔到 ${selectedLedger()?.name || "当前账本"}`);
+    addMessage(`账单已处理：新增 ${result.importedCount} 笔，按选择更新 ${result.updatedCount} 笔。`);
+    notify(`账单已处理：新增 ${result.importedCount} 笔，更新 ${result.updatedCount} 笔`);
   } catch (error) {
     notify(`导入失败：${error.message}`);
   } finally {
@@ -953,9 +1006,11 @@ function wireEvents() {
     renderImportSelectionSummary();
   });
   $("#import-table-body").addEventListener("change", (event) => {
-    if (!event.target.matches("input[data-import-index]")) return;
-    const selectable = $$("#import-table-body input[data-import-index]:not(:disabled)");
-    $("#import-select-all").checked = selectable.length > 0 && selectable.every((input) => input.checked);
+    if (event.target.matches("input[data-import-index]")) {
+      const selectable = $$("#import-table-body input[data-import-index]:not(:disabled)");
+      $("#import-select-all").checked = selectable.length > 0 && selectable.every((input) => input.checked);
+    }
+    if (!event.target.matches("input[data-import-index], select[data-conflict-index]")) return;
     renderImportSelectionSummary();
   });
   $("#commit-import").addEventListener("click", commitBillImport);

@@ -130,7 +130,7 @@ select.select-button { appearance: none; cursor: pointer; }
 
 .form-select { width: 100%; min-height: 46px; margin: 16px 0 10px; border: 1px solid var(--line); border-radius: 11px; background: #fbfcfd; color: var(--ink); padding: 0 13px; }
 .provider-badge { border-radius: 999px; padding: 6px 10px; background: var(--cyan-soft); color: #158da2; font-size: 11px; font-weight: 800; }
-.import-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 20px 0; }
+.import-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 20px 0; }
 .import-metrics div { padding: 15px; border-radius: 12px; background: var(--canvas); }
 .import-metrics span { color: var(--muted); font-size: 11px; }
 .import-metrics strong { display: block; margin-top: 7px; font-size: 22px; }
@@ -156,6 +156,19 @@ select.select-button { appearance: none; cursor: pointer; }
 .import-confirm-main strong { font-size: 12px; }
 .import-confirm-main small { margin-top: 4px; color: var(--faint); font-size: 10px; }
 .import-confirm-row > strong { white-space: nowrap; font-size: 12px; }
+.import-conflict-row { display: grid; gap: 10px; padding: 12px; border: 1px solid #e8c467; border-radius: 12px; background: #fffaf0; }
+.import-conflict-heading { display: flex; align-items: center; gap: 8px; color: #76530a; font-size: 12px; }
+.import-conflict-badge { padding: 4px 7px; border-radius: 999px; background: #f7dfa1; color: #76530a; font-size: 9px; font-weight: 800; letter-spacing: .03em; white-space: nowrap; }
+.import-conflict-versions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.import-version-card { min-width: 0; padding: 10px; border: 1px solid rgba(118,83,10,.14); border-radius: 9px; background: rgba(255,255,255,.82); }
+.import-version-card > span { display: block; margin-bottom: 7px; color: #9a741d; font-size: 9px; font-weight: 800; }
+.import-version-card strong, .import-version-card small, .import-version-card b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.import-version-card strong { font-size: 11px; }
+.import-version-card small { margin-top: 4px; color: var(--faint); font-size: 9px; }
+.import-version-card b { margin-top: 8px; font-size: 13px; }
+.import-conflict-choice { display: grid; gap: 6px; }
+.import-conflict-choice > span { color: #76530a; font-size: 10px; font-weight: 700; }
+.import-conflict-choice select { width: 100%; min-height: 38px; border: 1px solid #ddbc66; border-radius: 9px; background: var(--paper); color: var(--ink); padding: 0 10px; font-size: 11px; }
 .import-confirm-actions { align-items: stretch; flex-direction: column; gap: 9px; }
 .import-confirm-actions .primary-button { width: 100%; }
 .compact-modal { width: min(100%, 430px); }
@@ -253,6 +266,8 @@ select.select-button { appearance: none; cursor: pointer; }
   .row-actions { width: 100%; flex-wrap: wrap; justify-content: flex-start; }
   .row-action { flex: 1 1 62px; min-height: 34px; font-size: 11px; }
   .chat-panel { min-height: 620px; padding: 17px; }
+  .compact-import-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .import-conflict-versions { grid-template-columns: 1fr; }
   .message { max-width: 90%; }
   .quick-prompts { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 11px; }
   .quick-prompts button { white-space: nowrap; }

@@ -176,11 +176,12 @@
                 <div class="import-metrics compact-import-metrics">
                   <div><span>可导入</span><strong id="import-count">0</strong></div>
                   <div><span>已存在</span><strong id="import-duplicate-count">0</strong></div>
+                  <div><span>需确认</span><strong id="import-conflict-count">0</strong></div>
                   <div><span>已跳过</span><strong id="import-skipped-count">0</strong></div>
                 </div>
                 <label class="import-ledger-field" for="import-ledger-select"><span>写入账本</span><select id="import-ledger-select" class="form-select" aria-label="选择导入目标账本"></select></label>
                 <button id="import-create-ledger" class="text-button import-create-button" type="button">＋ 创建新账本</button>
-                <label class="import-select-all-row"><span><input id="import-select-all" type="checkbox" checked aria-label="全选可导入交易" /> 全选可导入交易</span><small>重复订单自动跳过</small></label>
+                <label class="import-select-all-row"><span><input id="import-select-all" type="checkbox" checked aria-label="全选可导入交易" /> 全选可导入交易</span><small>完全重复自动跳过，冲突逐笔确认</small></label>
                 <div id="import-table-body" class="import-confirm-list"></div>
                 <div class="import-actions import-confirm-actions">
                   <span id="import-selection-summary">尚未选择交易</span>

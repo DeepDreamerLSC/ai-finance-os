@@ -178,7 +178,7 @@ def import_commit(
     db: Session = Depends(get_db),
 ) -> dict:
     try:
-        imported, skipped = import_bill_transactions(
+        imported, updated, skipped = import_bill_transactions(
             db,
             auth.user.id,
             body.ledgerId,
@@ -188,6 +188,7 @@ def import_commit(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {
         "importedCount": len(imported),
+        "updatedCount": len(updated),
         "skippedCount": skipped,
         "state": build_state(db, auth.user.id),
     }
