@@ -9,6 +9,7 @@ import { createVoiceInputController } from "/input-utils.js?v=20260730-instituti
 
 const appState = {
   data: null,
+  dashboardLedgerId: "",
   filter: "all",
   importPreview: null,
   ledgerFilterIds: null,
@@ -148,6 +149,7 @@ function showLogin() {
 
 async function showApp(user) {
   appState.user = user;
+  appState.dashboardLedgerId = "";
   appState.ledgerFilterIds = null;
   $("#auth-loading").classList.add("hidden");
   $("#login-screen").classList.add("hidden");
@@ -352,13 +354,10 @@ function selectLedger(ledgerId, announce = false) {
 }
 
 function renderLedgerSelector() {
-  const selector = $("#ledger-name-button");
   const importSelector = $("#import-ledger-select");
   const ledgers = appState.data?.ledgers || [];
   renderLedgerFilter();
   if (!ledgers.length) {
-    selector.innerHTML = "<option value=\"\">暂无账本</option>";
-    selector.disabled = true;
     importSelector.innerHTML = "<option value=\"\">请先创建账本</option>";
     importSelector.disabled = true;
     $("#commit-import").disabled = true;
@@ -371,12 +370,9 @@ function renderLedgerSelector() {
       : ledgers[0].id;
   }
   window.localStorage.setItem(ledgerStorageKey(), appState.selectedLedgerId);
-  selector.disabled = false;
   importSelector.disabled = false;
   const options = ledgers.map((ledger) => `<option value="${escapeHtml(ledger.id)}">${escapeHtml(ledger.name)}</option>`).join("");
-  selector.innerHTML = options;
   importSelector.innerHTML = options;
-  selector.value = appState.selectedLedgerId;
   importSelector.value = appState.selectedLedgerId;
   $("#commit-import").disabled = !appState.importPreview;
 }
@@ -444,7 +440,18 @@ function renderChatDashboard() {
 }
 
 function renderDashboard() {
-  const dashboard = appState.data.dashboard;
+  const ledgers = appState.data.ledgers || [];
+  if (appState.dashboardLedgerId && !ledgers.some((ledger) => ledger.id === appState.dashboardLedgerId)) {
+    appState.dashboardLedgerId = "";
+  }
+  const dashboardSelector = $("#dashboard-ledger-filter");
+  dashboardSelector.innerHTML = `<option value="">全部账本</option>${ledgers.map(
+    (ledger) => `<option value="${escapeHtml(ledger.id)}">${escapeHtml(ledger.name)}</option>`,
+  ).join("")}`;
+  dashboardSelector.value = appState.dashboardLedgerId;
+  const dashboard = appState.dashboardLedgerId
+    ? appState.data.dashboardsByLedger?.[appState.dashboardLedgerId] || appState.data.dashboard
+    : appState.data.dashboard;
   $("#focus-month").textContent = monthLabel(dashboard.month);
   $("#metric-spend").textContent = currency(dashboard.spend);
   $("#metric-income").textContent = currency(dashboard.income);
@@ -665,7 +672,21 @@ function renderParsePreview(parsed) {
     return;
   }
   preview.classList.remove("hidden");
-  preview.innerHTML = `<p class="eyebrow">结构化预览</p><h3>${escapeHtml(parsed.ledger?.name || selectedLedger()?.name || "当前账本")}</h3>${parsed.transactions.map((tx) => `<div class="preview-line"><span>${escapeHtml(tx.note)}</span><strong>${tx.type === "income" ? "+" : "−"}${currency(tx.amount)}</strong></div><div class="preview-line"><span>类型</span><strong>${tx.type === "income" ? "收入" : "支出"}</strong></div><div class="preview-line"><span>分类</span><strong>${escapeHtml(categoryLabel(tx))}</strong></div>`).join("")}<div class="preview-actions"><button class="cancel-button" id="cancel-preview">取消</button><button class="confirm-button" id="confirm-preview">确认写入</button></div>`;
+  const targetLedger = parsed.ledger?.name;
+  const ledgerControl = targetLedger
+    ? `<div class="preview-ledger-target"><span>写入账本</span><strong>${escapeHtml(targetLedger)}（新建）</strong></div>`
+    : appState.data.ledgers.length
+      ? `<label class="preview-ledger-field" for="parse-ledger-select"><span>写入账本</span><select id="parse-ledger-select">${appState.data.ledgers.map((ledger) => `<option value="${escapeHtml(ledger.id)}">${escapeHtml(ledger.name)}</option>`).join("")}</select></label>`
+      : `<div class="preview-ledger-target"><span>写入账本</span><strong>提交后创建默认账本</strong></div>`;
+  preview.innerHTML = `<p class="eyebrow">结构化预览</p><h3>确认账务信息</h3>${ledgerControl}${parsed.transactions.map((tx) => `<div class="preview-line"><span>${escapeHtml(tx.note)}</span><strong>${tx.type === "income" ? "+" : "−"}${currency(tx.amount)}</strong></div><div class="preview-line"><span>类型</span><strong>${tx.type === "income" ? "收入" : "支出"}</strong></div><div class="preview-line"><span>分类</span><strong>${escapeHtml(categoryLabel(tx))}</strong></div>`).join("")}<div class="preview-actions"><button class="cancel-button" id="cancel-preview">取消</button><button class="confirm-button" id="confirm-preview">确认写入</button></div>`;
+  const parseLedgerSelector = $("#parse-ledger-select");
+  if (parseLedgerSelector) {
+    parseLedgerSelector.value = appState.selectedLedgerId || appState.data.ledgers[0].id;
+    parseLedgerSelector.addEventListener("change", (event) => {
+      appState.selectedLedgerId = event.target.value;
+      window.localStorage.setItem(ledgerStorageKey(), appState.selectedLedgerId);
+    });
+  }
   $("#confirm-preview").addEventListener("click", confirmParsedTransactions);
   $("#cancel-preview").addEventListener("click", () => preview.classList.add("hidden"));
 }
@@ -1059,9 +1080,11 @@ function wireEvents() {
   $$('[data-view-target]').forEach((button) => button.addEventListener("click", () => showView(button.dataset.viewTarget)));
   $("#mobile-menu").addEventListener("click", () => $(".sidebar").classList.toggle("open"));
   $("#refresh-button").addEventListener("click", () => loadState().then(() => notify("数据已刷新")));
-  $("#ledger-name-button").addEventListener("change", (event) => selectLedger(event.target.value, true));
   $("#import-ledger-select").addEventListener("change", (event) => selectLedger(event.target.value, true));
-  $("#create-ledger-button").addEventListener("click", openLedgerModal);
+  $("#dashboard-ledger-filter").addEventListener("change", (event) => {
+    appState.dashboardLedgerId = event.target.value;
+    renderDashboard();
+  });
   $("#new-ledger-button").addEventListener("click", openLedgerModal);
   $("#manage-ledgers-button").addEventListener("click", openLedgerManager);
   $("#import-create-ledger").addEventListener("click", openLedgerModal);

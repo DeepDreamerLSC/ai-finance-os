@@ -314,6 +314,18 @@ def build_state(db: Session, user_id: str) -> dict:
         "categoryOptions": category_options(),
     }
     state["dashboard"] = dashboard(state)
+    state["dashboardsByLedger"] = {
+        ledger.id: dashboard(
+            {
+                "transactions": [
+                    transaction
+                    for transaction in state["transactions"]
+                    if transaction["ledgerId"] == ledger.id
+                ]
+            }
+        )
+        for ledger in ledgers
+    }
     return state
 
 

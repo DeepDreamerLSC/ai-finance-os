@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#0b1b2b" />
     <title>AI Personal Finance OS</title>
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="/styles.css?v=20260731-ledger-filter-1" />
+    <link rel="stylesheet" href="/styles.css?v=20260731-dashboard-ledger-1" />
   </head>
   <body>
     <div id="auth-loading" class="auth-loading" aria-live="polite">
@@ -62,13 +62,6 @@
             <small>AI personal finance</small>
           </div>
         </div>
-        <div class="ledger-select">
-          <span class="eyebrow">当前账本</span>
-          <div class="ledger-select-row">
-            <select id="ledger-name-button" class="select-button" aria-label="切换当前账本"></select>
-            <button id="create-ledger-button" class="ledger-add-button" type="button" aria-label="创建账本" title="创建账本">＋</button>
-          </div>
-        </div>
         <nav class="primary-nav" aria-label="主导航">
           <button class="nav-item active" data-view="dashboard"><span class="nav-dot cyan"></span>总览</button>
           <button class="nav-item" data-view="chat"><span class="nav-dot violet"></span>AI 记账</button>
@@ -104,7 +97,10 @@
               <h2>财务总览</h2>
               <p class="subcopy">查看本月收支、消费趋势和 AI 分析。</p>
             </div>
-            <button class="primary-button" data-view-target="chat"><span>＋</span> 记一笔</button>
+            <div class="dashboard-heading-actions">
+              <label class="dashboard-ledger-field" for="dashboard-ledger-filter"><span>查看账本</span><select id="dashboard-ledger-filter" aria-label="选择总览账本"><option value="">全部账本</option></select></label>
+              <button class="primary-button" data-view-target="chat"><span>＋</span> 记一笔</button>
+            </div>
           </div>
 
           <div class="metric-grid">
@@ -273,6 +269,6 @@
         <div id="ledger-manager-list" class="ledger-manager-list"></div>
       </section>
     </div>
-    <script type="module" src="/app.js?v=20260731-ledger-filter-1"></script>
+    <script type="module" src="/app.js?v=20260731-dashboard-ledger-1"></script>
   </body>
 </html>

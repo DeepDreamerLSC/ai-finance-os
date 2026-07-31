@@ -73,6 +73,7 @@ test("2 登录后恢复原财务视图", async ({ page }, testInfo) => {
   await expect(page.locator("#ledger-view .view-heading h2")).toHaveText("账本");
   await expect(page.locator("#receipts-view .view-heading h2")).toHaveText("凭证");
   await expect(page.locator(".view-heading .eyebrow")).toHaveCount(0);
+  await expect(page.locator("#dashboard-ledger-filter")).toHaveValue("");
 });
 
 test("3 无效长期会话返回登录页", async ({ page, context }, testInfo) => {
@@ -228,6 +229,7 @@ test("6 微信语音剪贴板结果会进入对话输入框", async ({ page }, t
   await page.locator("#chat-form").getByRole("button", { name: "发送" }).click();
   await expect(page.locator("#parse-preview")).toContainText("收入");
   await expect(page.locator("#parse-preview")).toContainText("¥800.00");
+  await expect(page.locator("#parse-ledger-select")).toBeVisible();
 });
 
 test("7 用户名可修改，账本可重命名和删除", async ({ page }, testInfo) => {
@@ -248,7 +250,7 @@ test("7 用户名可修改，账本可重命名和删除", async ({ page }, test
   const row = page.locator('#ledger-manager-list input[value="待整理账本"]').locator("..");
   await row.locator("input").fill("旅行账本");
   await row.getByRole("button", { name: "保存" }).click();
-  await expect(page.locator("#ledger-name-button")).toContainText("旅行账本");
+  await expect(page.locator("#dashboard-ledger-filter")).toContainText("旅行账本");
 
   page.once("dialog", (dialog) => dialog.accept());
   await page.locator('#ledger-manager-list input[value="旅行账本"]').locator("..").getByRole("button", { name: "删除" }).click();
@@ -286,7 +288,6 @@ test("8 账目完整明细和金额都可以编辑", async ({ page }, testInfo) 
   await page.locator("#transaction-edit-form").getByRole("button", { name: "保存全部修改" }).click();
   await expect(page.locator("#transaction-edit-modal")).toBeHidden();
 
-  await page.locator("#ledger-name-button").selectOption({ label: "报销账本" });
   await expect(page.locator("#ledger-table-body")).toContainText("停车报销");
   await expect(parkingRow.locator("td").nth(1)).toHaveText("报销账本");
   await expect(page.locator("#ledger-table-body")).toContainText("退款报销 · 公司报销");
@@ -299,4 +300,8 @@ test("8 账目完整明细和金额都可以编辑", async ({ page }, testInfo) 
   await page.getByRole("checkbox", { name: "报销账本" }).check();
   await expect(page.locator("#ledger-filter-label")).toHaveText("报销账本");
   await expect(page.locator("#ledger-table-body tr")).toHaveCount(1);
+
+  await page.locator('[data-view="dashboard"]').click();
+  await page.locator("#dashboard-ledger-filter").selectOption({ label: "报销账本" });
+  await expect(page.locator("#metric-income")).toHaveText("¥112.36");
 });
