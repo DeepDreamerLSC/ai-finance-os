@@ -218,13 +218,16 @@ test("6 微信语音剪贴板结果会进入对话输入框", async ({ page }, t
     });
     Object.defineProperty(window.navigator, "clipboard", {
       configurable: true,
-      value: { readText: async () => "刚刚停车112元" },
+      value: { readText: async () => "客户给我转了800块" },
     });
   });
   await page.goto("/#chat");
   await login(page, phoneFor(testInfo));
   await page.locator("#voice-button").click();
-  await expect(page.locator("#chat-input")).toHaveValue("刚刚停车112元");
+  await expect(page.locator("#chat-input")).toHaveValue("客户给我转了800块");
+  await page.locator("#chat-form").getByRole("button", { name: "发送" }).click();
+  await expect(page.locator("#parse-preview")).toContainText("收入");
+  await expect(page.locator("#parse-preview")).toContainText("¥800.00");
 });
 
 test("7 用户名可修改，账本可重命名和删除", async ({ page }, testInfo) => {
@@ -285,8 +288,15 @@ test("8 账目完整明细和金额都可以编辑", async ({ page }, testInfo) 
 
   await page.locator("#ledger-name-button").selectOption({ label: "报销账本" });
   await expect(page.locator("#ledger-table-body")).toContainText("停车报销");
+  await expect(parkingRow.locator("td").nth(1)).toHaveText("报销账本");
   await expect(page.locator("#ledger-table-body")).toContainText("退款报销 · 公司报销");
   await expect(page.locator("#ledger-table-body")).toContainText("可报销");
   await expect(page.locator("#ledger-table-body")).toContainText("+¥112.36");
   await expect(page.locator("#ledger-table-body")).toContainText("7月9日");
+
+  await page.locator("#ledger-filter-button").click();
+  await page.getByRole("checkbox", { name: "全部账本" }).uncheck();
+  await page.getByRole("checkbox", { name: "报销账本" }).check();
+  await expect(page.locator("#ledger-filter-label")).toHaveText("报销账本");
+  await expect(page.locator("#ledger-table-body tr")).toHaveCount(1);
 });

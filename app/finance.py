@@ -50,9 +50,24 @@ def classify(text: str) -> str:
 
 
 def _transaction_type(text: str) -> str:
-    return "income" if any(
-        word in text for word in ("奖金", "收入", "工资", "薪资", "到账", "退款", "提成")
-    ) else "expense"
+    normalized = re.sub(r"\s+", "", text)
+    income_patterns = (
+        r"(?:给我|向我|转给我|打给我).*(?:转|汇|打)",
+        r"(?:收到|收款|入账|进账|到账|转入|收入)",
+        r"(?:工资|薪资|奖金|绩效|补贴|提成|分红|利息)",
+        r"(?:退款|退回|报销|理赔)",
+        r"(?:赚了|卖出|卖了|回款)",
+    )
+    expense_patterns = (
+        r"(?:我给|我向|转给|汇给|打给).*(?:转|汇|打)",
+        r"(?:花了|支付|付款|付了|消费|支出|扣款|转出)",
+        r"(?:买了|购买|充值|缴费|还款|发红包)",
+    )
+    if any(re.search(pattern, normalized) for pattern in income_patterns):
+        return "income"
+    if any(re.search(pattern, normalized) for pattern in expense_patterns):
+        return "expense"
+    return "expense"
 
 
 def _extract_date(text: str) -> str:
@@ -67,7 +82,10 @@ def parse_command(text: str) -> dict:
     ledger_match = re.search(r"(20\d{2})账本", normalized)
     ledger = {"name": f"{ledger_match.group(1)} 账本"} if ledger_match else None
     amounts = list(
-        re.finditer(r"([+-]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?)\s*元", normalized)
+        re.finditer(
+            r"([+-]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?)\s*(?:元|块钱|块)",
+            normalized,
+        )
     )
     transactions: list[dict] = []
     separators = "，,；;。"

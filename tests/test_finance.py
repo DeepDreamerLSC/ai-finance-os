@@ -32,6 +32,28 @@ def test_parse_supports_standard_thousands_separator():
     assert parsed["transactions"][0]["amount"] == 4200
 
 
+@pytest.mark.parametrize(
+    ("text", "expected_type", "expected_amount"),
+    [
+        ("今天午饭花了23块钱", "expense", 23),
+        ("客户给我转了800块", "income", 800),
+        ("工资到账一共12000元", "income", 12000),
+        ("我给小王转了200元", "expense", 200),
+        ("公司报销到账356.8元", "income", 356.8),
+    ],
+)
+def test_parse_voice_style_amount_and_transaction_type(text, expected_type, expected_amount):
+    transaction = parse_command(text)["transactions"][0]
+    assert transaction["type"] == expected_type
+    assert transaction["amount"] == expected_amount
+
+
+def test_parse_voice_style_meal_gets_food_category():
+    transaction = parse_command("今天午饭花了23块钱")["transactions"][0]
+    assert transaction["category"] == "餐饮"
+    assert transaction["subcategory"] == "正餐"
+
+
 def test_dashboard_and_insight_are_data_driven():
     state = {
         "ledgers": [{"id": "ledger-1", "name": "2026 账本"}],

@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#0b1b2b" />
     <title>AI Personal Finance OS</title>
     <link rel="icon" href="data:," />
-    <link rel="stylesheet" href="/styles.css?v=20260730-classification-1" />
+    <link rel="stylesheet" href="/styles.css?v=20260731-ledger-filter-1" />
   </head>
   <body>
     <div id="auth-loading" class="auth-loading" aria-live="polite">
@@ -195,8 +195,15 @@
 
         <section id="ledger-view" class="view">
           <div class="view-heading"><div><h2>账本</h2><p class="subcopy">查看、搜索和修改每一笔交易。</p></div><div class="heading-actions"><button class="secondary-button" id="manage-ledgers-button" type="button">管理账本</button><button class="secondary-button" id="new-ledger-button" type="button">新建账本</button><button class="primary-button" id="new-ledger-entry">＋ 新建记录</button></div></div>
-          <div class="ledger-toolbar surface"><div class="search-wrap"><span>⌕</span><input id="ledger-search" type="search" placeholder="搜索商户、备注或分类" /></div><div class="filter-tabs"><button class="filter-tab active" data-filter="all">全部</button><button class="filter-tab" data-filter="expense">支出</button><button class="filter-tab" data-filter="income">收入</button></div></div>
-          <div class="surface ledger-table-wrap"><table class="ledger-table"><thead><tr><th>交易</th><th>分类</th><th>日期</th><th>来源</th><th class="align-right">金额</th><th class="align-right">操作</th></tr></thead><tbody id="ledger-table-body"></tbody></table><div id="ledger-empty" class="empty-state hidden">还没有匹配的交易。</div></div>
+          <div class="ledger-toolbar surface">
+            <div class="search-wrap"><span>⌕</span><input id="ledger-search" type="search" placeholder="搜索商户、备注、分类或账本" /></div>
+            <div id="ledger-filter" class="ledger-filter">
+              <button id="ledger-filter-button" class="ledger-filter-button" type="button" aria-haspopup="true" aria-expanded="false"><span id="ledger-filter-label">全部账本</span><span>⌄</span></button>
+              <div id="ledger-filter-menu" class="ledger-filter-menu hidden" role="group" aria-label="筛选账本"></div>
+            </div>
+            <div class="filter-tabs"><button class="filter-tab active" data-filter="all">全部</button><button class="filter-tab" data-filter="expense">支出</button><button class="filter-tab" data-filter="income">收入</button></div>
+          </div>
+          <div class="surface ledger-table-wrap"><table class="ledger-table"><thead><tr><th>交易</th><th>账本</th><th>分类</th><th>日期</th><th>来源</th><th class="align-right">金额</th><th class="align-right">操作</th></tr></thead><tbody id="ledger-table-body"></tbody></table><div id="ledger-empty" class="empty-state hidden">还没有匹配的交易。</div></div>
         </section>
 
         <section id="receipts-view" class="view">
@@ -266,6 +273,6 @@
         <div id="ledger-manager-list" class="ledger-manager-list"></div>
       </section>
     </div>
-    <script type="module" src="/app.js?v=20260730-classification-1"></script>
+    <script type="module" src="/app.js?v=20260731-ledger-filter-1"></script>
   </body>
 </html>

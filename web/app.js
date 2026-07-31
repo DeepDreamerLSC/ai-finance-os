@@ -11,6 +11,7 @@ const appState = {
   data: null,
   filter: "all",
   importPreview: null,
+  ledgerFilterIds: null,
   query: "",
   pendingParse: null,
   selectedLedgerId: null,
@@ -147,6 +148,7 @@ function showLogin() {
 
 async function showApp(user) {
   appState.user = user;
+  appState.ledgerFilterIds = null;
   $("#auth-loading").classList.add("hidden");
   $("#login-screen").classList.add("hidden");
   $("#app-shell").classList.remove("hidden");
@@ -353,6 +355,7 @@ function renderLedgerSelector() {
   const selector = $("#ledger-name-button");
   const importSelector = $("#import-ledger-select");
   const ledgers = appState.data?.ledgers || [];
+  renderLedgerFilter();
   if (!ledgers.length) {
     selector.innerHTML = "<option value=\"\">暂无账本</option>";
     selector.disabled = true;
@@ -376,6 +379,61 @@ function renderLedgerSelector() {
   selector.value = appState.selectedLedgerId;
   importSelector.value = appState.selectedLedgerId;
   $("#commit-import").disabled = !appState.importPreview;
+}
+
+function renderLedgerFilter() {
+  const ledgers = appState.data?.ledgers || [];
+  if (Array.isArray(appState.ledgerFilterIds)) {
+    appState.ledgerFilterIds = appState.ledgerFilterIds.filter((id) =>
+      ledgers.some((ledger) => ledger.id === id),
+    );
+    if (ledgers.length && appState.ledgerFilterIds.length === ledgers.length) {
+      appState.ledgerFilterIds = null;
+    }
+  }
+  const allSelected = appState.ledgerFilterIds === null;
+  const selectedIds = allSelected ? ledgers.map((ledger) => ledger.id) : appState.ledgerFilterIds;
+  const selectedNames = ledgers
+    .filter((ledger) => selectedIds.includes(ledger.id))
+    .map((ledger) => ledger.name);
+  $("#ledger-filter-label").textContent = allSelected
+    ? "全部账本"
+    : selectedNames.length === 1
+      ? selectedNames[0]
+      : selectedNames.length
+        ? `已选 ${selectedNames.length} 个账本`
+        : "未选择账本";
+  $("#ledger-filter-menu").innerHTML = `
+    <label class="ledger-filter-option ledger-filter-all">
+      <input type="checkbox" data-ledger-filter-all ${allSelected ? "checked" : ""} />
+      <span>全部账本</span>
+    </label>
+    ${ledgers.map((ledger) => `
+      <label class="ledger-filter-option">
+        <input type="checkbox" data-ledger-filter-id="${escapeHtml(ledger.id)}" ${selectedIds.includes(ledger.id) ? "checked" : ""} />
+        <span>${escapeHtml(ledger.name)}</span>
+      </label>
+    `).join("")}
+  `;
+}
+
+function updateLedgerFilter(event) {
+  const ledgers = appState.data?.ledgers || [];
+  const allIds = ledgers.map((ledger) => ledger.id);
+  if (event.target.matches("[data-ledger-filter-all]")) {
+    appState.ledgerFilterIds = event.target.checked ? null : [];
+  } else if (event.target.matches("[data-ledger-filter-id]")) {
+    const ledgerId = event.target.dataset.ledgerFilterId;
+    const selected = appState.ledgerFilterIds === null ? [...allIds] : [...appState.ledgerFilterIds];
+    appState.ledgerFilterIds = event.target.checked
+      ? [...new Set([...selected, ledgerId])]
+      : selected.filter((id) => id !== ledgerId);
+    if (appState.ledgerFilterIds.length === allIds.length) appState.ledgerFilterIds = null;
+  } else {
+    return;
+  }
+  renderLedgerFilter();
+  renderLedger();
 }
 
 function renderChatDashboard() {
@@ -412,14 +470,17 @@ function renderDashboard() {
 }
 
 function renderLedger() {
+  const ledgersById = new Map((appState.data.ledgers || []).map((ledger) => [ledger.id, ledger]));
   const rows = (appState.data.transactions || []).filter((tx) => {
-    const matchesLedger = !appState.selectedLedgerId || tx.ledgerId === appState.selectedLedgerId;
+    const matchesLedger = appState.ledgerFilterIds === null
+      || appState.ledgerFilterIds.includes(tx.ledgerId);
     const matchesFilter = appState.filter === "all" || tx.type === appState.filter;
-    const haystack = `${tx.note} ${tx.category} ${tx.subcategory || ""} ${(tx.tags || []).join(" ")} ${tx.date}`.toLowerCase();
+    const ledgerName = ledgersById.get(tx.ledgerId)?.name || "个人账本";
+    const haystack = `${tx.note} ${tx.category} ${tx.subcategory || ""} ${(tx.tags || []).join(" ")} ${ledgerName} ${tx.date}`.toLowerCase();
     return matchesLedger && matchesFilter && haystack.includes(appState.query.toLowerCase());
   }).sort((a, b) => b.date.localeCompare(a.date));
   $("#ledger-empty").classList.toggle("hidden", rows.length > 0);
-  $("#ledger-table-body").innerHTML = rows.map((tx) => { const receipt = tx.receiptId && appState.data.receipts.find((item) => item.id === tx.receiptId); const receiptAction = receipt ? `<button class="row-action" data-view-receipt-id="${escapeHtml(tx.receiptId)}">凭证</button>` : ""; return `<tr><td><div class="table-transaction"><span class="transaction-icon ${tx.type}">${tx.type === "income" ? "↗" : "↘"}</span><div><strong>${escapeHtml(tx.note)}</strong><small>${escapeHtml((appState.data.ledgers.find((ledger) => ledger.id === tx.ledgerId) || {}).name || "个人账本")}</small></div></div></td><td><span class="category-tag">${escapeHtml(categoryLabel(tx))}</span><div class="transaction-tags">${renderTagChips(tx.tags)}</div></td><td>${dateLabel(tx.date)}</td><td>${sourceLabel(tx.source)}</td><td class="align-right ${tx.type === "income" ? "amount-income" : "amount-expense"}">${tx.type === "income" ? "+" : "−"}${currency(tx.amount)}</td><td class="align-right"><div class="row-actions"><button class="row-action" data-detail-id="${escapeHtml(tx.id)}">详情</button>${receiptAction}<button class="row-action" data-edit-id="${escapeHtml(tx.id)}">编辑</button><button class="row-action danger" data-delete-id="${escapeHtml(tx.id)}">删除</button></div></td></tr>`; }).join("");
+  $("#ledger-table-body").innerHTML = rows.map((tx) => { const receipt = tx.receiptId && appState.data.receipts.find((item) => item.id === tx.receiptId); const receiptAction = receipt ? `<button class="row-action" data-view-receipt-id="${escapeHtml(tx.receiptId)}">凭证</button>` : ""; const ledgerName = ledgersById.get(tx.ledgerId)?.name || "个人账本"; return `<tr><td><div class="table-transaction"><span class="transaction-icon ${tx.type}">${tx.type === "income" ? "↗" : "↘"}</span><div><strong>${escapeHtml(tx.note)}</strong><small>${tx.type === "income" ? "收入" : "支出"}</small></div></div></td><td><span class="ledger-badge">${escapeHtml(ledgerName)}</span></td><td><span class="category-tag">${escapeHtml(categoryLabel(tx))}</span><div class="transaction-tags">${renderTagChips(tx.tags)}</div></td><td>${dateLabel(tx.date)}</td><td>${sourceLabel(tx.source)}</td><td class="align-right ${tx.type === "income" ? "amount-income" : "amount-expense"}">${tx.type === "income" ? "+" : "−"}${currency(tx.amount)}</td><td class="align-right"><div class="row-actions"><button class="row-action" data-detail-id="${escapeHtml(tx.id)}">详情</button>${receiptAction}<button class="row-action" data-edit-id="${escapeHtml(tx.id)}">编辑</button><button class="row-action danger" data-delete-id="${escapeHtml(tx.id)}">删除</button></div></td></tr>`; }).join("");
 }
 
 async function viewTransactionReceipt(receiptId) {
@@ -604,7 +665,7 @@ function renderParsePreview(parsed) {
     return;
   }
   preview.classList.remove("hidden");
-  preview.innerHTML = `<p class="eyebrow">结构化预览</p><h3>${escapeHtml(parsed.ledger?.name || selectedLedger()?.name || "当前账本")}</h3>${parsed.transactions.map((tx) => `<div class="preview-line"><span>${escapeHtml(tx.note)}</span><strong>${tx.type === "income" ? "+" : "−"}${currency(tx.amount)}</strong></div><div class="preview-line"><span>分类</span><strong>${escapeHtml(tx.category)}</strong></div>`).join("")}<div class="preview-actions"><button class="cancel-button" id="cancel-preview">取消</button><button class="confirm-button" id="confirm-preview">确认写入</button></div>`;
+  preview.innerHTML = `<p class="eyebrow">结构化预览</p><h3>${escapeHtml(parsed.ledger?.name || selectedLedger()?.name || "当前账本")}</h3>${parsed.transactions.map((tx) => `<div class="preview-line"><span>${escapeHtml(tx.note)}</span><strong>${tx.type === "income" ? "+" : "−"}${currency(tx.amount)}</strong></div><div class="preview-line"><span>类型</span><strong>${tx.type === "income" ? "收入" : "支出"}</strong></div><div class="preview-line"><span>分类</span><strong>${escapeHtml(categoryLabel(tx))}</strong></div>`).join("")}<div class="preview-actions"><button class="cancel-button" id="cancel-preview">取消</button><button class="confirm-button" id="confirm-preview">确认写入</button></div>`;
   $("#confirm-preview").addEventListener("click", confirmParsedTransactions);
   $("#cancel-preview").addEventListener("click", () => preview.classList.add("hidden"));
 }
@@ -1022,6 +1083,17 @@ function wireEvents() {
   $("#chat-form").addEventListener("submit", handleChat);
   $$(".quick-prompts button").forEach((button) => button.addEventListener("click", () => { $("#chat-input").value = button.dataset.prompt; $("#chat-input").focus(); }));
   $("#ledger-search").addEventListener("input", (event) => { appState.query = event.target.value; renderLedger(); });
+  $("#ledger-filter-button").addEventListener("click", () => {
+    const menu = $("#ledger-filter-menu");
+    menu.classList.toggle("hidden");
+    $("#ledger-filter-button").setAttribute("aria-expanded", String(!menu.classList.contains("hidden")));
+  });
+  $("#ledger-filter-menu").addEventListener("change", updateLedgerFilter);
+  document.addEventListener("click", (event) => {
+    if (event.target.closest("#ledger-filter")) return;
+    $("#ledger-filter-menu").classList.add("hidden");
+    $("#ledger-filter-button").setAttribute("aria-expanded", "false");
+  });
   $$(".filter-tab").forEach((button) => button.addEventListener("click", () => { appState.filter = button.dataset.filter; $$(".filter-tab").forEach((tab) => tab.classList.toggle("active", tab === button)); renderLedger(); }));
   $("#new-ledger-entry").addEventListener("click", () => { showView("chat"); $("#chat-input").focus(); });
   createVoiceInputController({
