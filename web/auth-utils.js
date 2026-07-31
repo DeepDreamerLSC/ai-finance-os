@@ -20,5 +20,5 @@ export function safePostLoginPath(value) {
 export function viewFromLocation(locationLike) {
   const candidate = String(locationLike?.hash || "").replace(/^#/, "");
   if (candidate === "import") return "chat";
-  return ["dashboard", "chat", "ledger", "receipts"].includes(candidate) ? candidate : "dashboard";
+  return ["dashboard", "chat", "ledger"].includes(candidate) ? candidate : "dashboard";
 }

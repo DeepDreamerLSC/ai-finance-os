@@ -71,7 +71,7 @@ test("2 登录后恢复原财务视图", async ({ page }, testInfo) => {
   await expect(page.locator("#dashboard-view .view-heading h2")).toHaveText("财务总览");
   await expect(page.locator("#chat-view .view-heading h2")).toHaveText("AI 记账");
   await expect(page.locator("#ledger-view .view-heading h2")).toHaveText("账本");
-  await expect(page.locator("#receipts-view .view-heading h2")).toHaveText("凭证");
+  await expect(page.locator('[data-view="receipts"]')).toHaveCount(0);
   await expect(page.locator(".view-heading .eyebrow")).toHaveCount(0);
   await expect(page.locator("#dashboard-ledger-filter")).toHaveValue("");
 });
@@ -121,7 +121,7 @@ test("5 账单导入会自动去重并对用户修改过的记录二次确认", 
   await login(page, phoneFor(testInfo));
   await expect(page.locator("#chat-view")).toBeVisible();
   await expect(page.locator('[data-view="import"]')).toHaveCount(0);
-  await expect(page.locator("#bill-file")).toHaveAttribute("accept", /\.xlsx,.csv/);
+  await expect(page.locator("#bill-file")).toHaveAttribute("accept", /image\/png/);
 
   const csv = [
     "支付宝交易明细",
@@ -304,4 +304,37 @@ test("8 账目完整明细和金额都可以编辑", async ({ page }, testInfo) 
   await page.locator('[data-view="dashboard"]').click();
   await page.locator("#dashboard-ledger-filter").selectOption({ label: "报销账本" });
   await expect(page.locator("#metric-income")).toHaveText("¥112.36");
+});
+
+test("9 凭证可从单笔账务和 AI 对话双向关联", async ({ page }, testInfo) => {
+  await page.goto("/#ledger");
+  await login(page, phoneFor(testInfo));
+  const firstRow = page.locator("#ledger-table-body tr").first();
+  await firstRow.getByRole("button", { name: "编辑" }).click();
+  await page.locator("#transaction-receipt-file").setInputFiles({
+    name: "编辑账务凭证-66.60元.png",
+    mimeType: "image/png",
+    buffer: Buffer.from("receipt-from-editor", "utf8"),
+  });
+  await expect(page.locator("#transaction-receipt-status")).toContainText("已保存并关联");
+  await expect(page.locator("#transaction-receipt-upload-label")).toHaveText("替换凭证");
+  await page.locator("#close-transaction-edit-modal").click();
+
+  if (testInfo.project.name === "mobile") await page.locator("#mobile-menu").click();
+  await page.locator('[data-view="chat"]').click();
+  await page.locator("#bill-file").setInputFiles({
+    name: "AI凭证-12.34元.png",
+    mimeType: "image/png",
+    buffer: Buffer.from("receipt-from-chat", "utf8"),
+  });
+  await expect(page.locator("#receipt-match-preview")).toBeVisible();
+  await page.locator("#receipt-match-merchant").fill("AI 凭证测试");
+  await page.locator("#receipt-match-target").selectOption("new");
+  await page.locator("#confirm-receipt-match").click();
+  await expect(page.locator("#toast")).toContainText("凭证处理完成");
+
+  if (testInfo.project.name === "mobile") await page.locator("#mobile-menu").click();
+  await page.locator('[data-view="ledger"]').click();
+  await expect(page.locator("#ledger-table-body")).toContainText("AI 凭证测试");
+  await expect(page.locator("#ledger-table-body tr").filter({ hasText: "AI 凭证测试" })).toContainText("凭证");
 });

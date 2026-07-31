@@ -507,6 +507,123 @@ def update_receipt(db: Session, user_id: str, receipt_id: str, updates: dict) ->
     return _receipt_payload(receipt)
 
 
+def receipt_match_candidates(db: Session, user_id: str, receipt_id: str, limit: int = 8) -> list[dict]:
+    receipt = db.scalar(select(Receipt).where(Receipt.id == receipt_id, Receipt.user_id == user_id))
+    if not receipt:
+        return []
+    rows = db.execute(
+        select(Transaction, Ledger)
+        .join(Ledger, Transaction.ledger_id == Ledger.id)
+        .where(Ledger.user_id == user_id, Transaction.id != (receipt.transaction_id or ""))
+        .order_by(Transaction.transaction_date.desc(), Transaction.created_at.desc())
+        .limit(80)
+    ).all()
+    transaction_ids = [transaction.id for transaction, _ledger in rows]
+    receipt_by_transaction = dict(
+        db.execute(
+            select(Receipt.transaction_id, Receipt.id).where(
+                Receipt.user_id == user_id,
+                Receipt.transaction_id.in_(transaction_ids),
+            )
+        ).all()
+    ) if transaction_ids else {}
+    merchant = re.sub(r"\s+", "", receipt.merchant or "")
+    candidates: list[dict] = []
+    for transaction, ledger in rows:
+        amount_gap = abs(transaction.amount - receipt.amount)
+        day_gap = abs((transaction.transaction_date - receipt.receipt_date).days)
+        score = 0
+        reasons: list[str] = []
+        if amount_gap <= Decimal("0.01"):
+            score += 70
+            reasons.append("金额一致")
+        elif amount_gap <= max(Decimal("1"), receipt.amount * Decimal("0.02")):
+            score += 35
+            reasons.append("金额接近")
+        if day_gap == 0:
+            score += 20
+            reasons.append("日期一致")
+        elif day_gap <= 3:
+            score += 10
+            reasons.append("日期接近")
+        note = re.sub(r"\s+", "", transaction.note or "")
+        if merchant and merchant != "待确认商户" and (merchant in note or note in merchant):
+            score += 10
+            reasons.append("商户相符")
+        if transaction.category == receipt.category:
+            score += 5
+            reasons.append("分类相符")
+        existing_receipt = receipt_by_transaction.get(transaction.id)
+        candidates.append(
+            {
+                **_transaction_payload(transaction, existing_receipt),
+                "ledgerName": ledger.name,
+                "matchScore": score,
+                "matchReasons": reasons,
+                "hasReceipt": bool(existing_receipt),
+            }
+        )
+    return sorted(candidates, key=lambda item: (item["matchScore"], item["date"]), reverse=True)[:limit]
+
+
+def link_receipt(
+    db: Session,
+    user_id: str,
+    receipt_id: str,
+    transaction_id: str,
+    *,
+    replace_existing: bool = False,
+    update_transaction_fields: bool = False,
+) -> dict | None:
+    receipt = db.scalar(
+        select(Receipt).where(Receipt.id == receipt_id, Receipt.user_id == user_id).with_for_update()
+    )
+    transaction = db.scalar(
+        select(Transaction)
+        .join(Ledger, Transaction.ledger_id == Ledger.id)
+        .where(Transaction.id == transaction_id, Ledger.user_id == user_id)
+        .with_for_update()
+    )
+    if not receipt or not transaction:
+        return None
+    occupied = db.scalar(
+        select(Receipt).where(
+            Receipt.user_id == user_id,
+            Receipt.transaction_id == transaction.id,
+            Receipt.id != receipt.id,
+        )
+    )
+    if occupied and not replace_existing:
+        raise ValueError("这笔账务已有凭证，请确认替换后再试")
+    if occupied:
+        occupied.transaction_id = None
+        db.flush()
+    receipt.transaction_id = transaction.id
+    transaction.tags = normalize_tags([*(transaction.tags or []), "有凭证"])
+    if update_transaction_fields:
+        transaction.amount = receipt.amount
+        transaction.transaction_date = receipt.receipt_date
+        if receipt.merchant and receipt.merchant != "待确认商户":
+            transaction.note = receipt.merchant[:80]
+        classification = classify_transaction(
+            transaction.note,
+            transaction.type,
+            existing_category=receipt.category,
+            source=transaction.source,
+            tags=transaction.tags,
+            has_receipt=True,
+        )
+        transaction.category = classification["category"]
+        transaction.subcategory = classification["subcategory"]
+        transaction.tags = classification["tags"]
+    validate_classification(transaction.type, transaction.category, transaction.subcategory)
+    db.commit()
+    return {
+        "transaction": _transaction_payload(transaction, receipt.id),
+        "receipt": _receipt_payload(receipt),
+    }
+
+
 def apply_receipt(
     db: Session, user_id: str, receipt_id: str, ledger_name: str | None = None
 ) -> tuple[dict | None, bool]:

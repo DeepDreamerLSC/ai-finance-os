@@ -199,6 +199,21 @@ button { cursor: pointer; }
 .transaction-edit-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .transaction-edit-wide { grid-column: 1 / -1; }
 .transaction-edit-source { margin: 14px 0 4px; }
+.transaction-receipt-editor { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px 14px; align-items: center; margin-top: 18px; padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--canvas); }
+.transaction-receipt-editor strong { display: block; font-size: 13px; }
+.transaction-receipt-editor p { margin: 5px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.transaction-receipt-actions { justify-self: end; }
+.transaction-receipt-upload { display: inline-grid; place-items: center; justify-self: start; min-height: 38px; padding: 0 13px; cursor: pointer; font-size: 11px; font-weight: 800; }
+.transaction-receipt-editor small { align-self: center; color: var(--faint); font-size: 10px; }
+.receipt-match-card { border-color: #cfc5b0; background: #f9f6ef; }
+.receipt-recognition-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.receipt-recognition-grid label, .receipt-target-field { display: grid; gap: 6px; }
+.receipt-recognition-grid span, .receipt-target-field span { color: var(--muted); font-size: 10px; font-weight: 700; }
+.receipt-recognition-grid input, .receipt-target-field select { width: 100%; min-height: 40px; border: 1px solid var(--line); border-radius: 7px; background: var(--paper); color: var(--ink); padding: 0 10px; outline: none; font-size: 11px; }
+.receipt-recognition-grid input:focus, .receipt-target-field select:focus { border-color: var(--green); }
+.receipt-target-field { margin-top: 12px; }
+.receipt-update-row { display: flex; gap: 8px; align-items: flex-start; margin-top: 12px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.receipt-match-card .modal-helper { margin: 12px 0 0; }
 .detail-actions { display: flex; gap: 10px; margin-top: 18px; }
 .detail-actions .primary-button { width: 100%; }
 .ledger-manager-card { width: min(100%, 620px); }

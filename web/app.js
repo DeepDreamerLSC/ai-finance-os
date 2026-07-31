@@ -13,6 +13,7 @@ const appState = {
   filter: "all",
   importPreview: null,
   ledgerFilterIds: null,
+  pendingReceipt: null,
   query: "",
   pendingParse: null,
   selectedLedgerId: null,
@@ -331,7 +332,7 @@ function showView(viewName, updateLocation = true) {
   $$(".nav-item").forEach((item) => item.classList.toggle("active", item.dataset.view === targetView));
   renderUserIdentity();
   $(".sidebar").classList.remove("open");
-  if (updateLocation && ["dashboard", "chat", "ledger", "receipts"].includes(targetView)) {
+  if (updateLocation && ["dashboard", "chat", "ledger"].includes(targetView)) {
     window.history.replaceState({}, "", `#${targetView}`);
   }
 }
@@ -541,9 +542,59 @@ function editTransaction(transactionId) {
     (ledger) => `<option value="${escapeHtml(ledger.id)}">${escapeHtml(ledger.name)}</option>`,
   ).join("");
   $("#transaction-edit-ledger").value = tx.ledgerId;
-  $("#transaction-edit-source").textContent = `记录来源：${sourceLabel(tx.source)}（来源与原始凭证保持只读）`;
+  renderTransactionReceiptEditor(tx);
+  $("#transaction-edit-source").textContent = `记录来源：${sourceLabel(tx.source)}（原始来源保持只读，其他字段和凭证均可调整）`;
   $("#transaction-edit-modal").classList.remove("hidden");
   window.setTimeout(() => $("#transaction-edit-note").focus(), 40);
+}
+
+function renderTransactionReceiptEditor(tx) {
+  const receipt = tx.receiptId && appState.data.receipts.find((item) => item.id === tx.receiptId);
+  $("#transaction-receipt-actions").innerHTML = receipt
+    ? `<button class="text-button" type="button" data-edit-view-receipt="${escapeHtml(receipt.id)}">查看当前凭证 →</button>`
+    : "";
+  $("#transaction-receipt-copy").textContent = receipt
+    ? `${receipt.filename} · ${currency(receipt.amount)} · ${dateLabel(receipt.date)}`
+    : "可添加小票、发票或支付截图。";
+  $("#transaction-receipt-upload-label").textContent = receipt ? "替换凭证" : "添加凭证";
+  $("#transaction-receipt-status").textContent = "支持 PNG、JPG、WEBP，单张不超过 8MB。";
+}
+
+async function uploadReceipt(file) {
+  if (!file || !/^image\/(png|jpeg|webp)$/i.test(file.type)) throw new Error("仅支持 PNG、JPG 或 WEBP 图片");
+  if (file.size > 8 * 1024 * 1024) throw new Error("图片不能超过 8MB");
+  const data = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(dataUrlToPayload(reader.result));
+    reader.onerror = () => reject(new Error("无法读取图片"));
+    reader.readAsDataURL(file);
+  });
+  return api("/api/receipts", {
+    method: "POST",
+    body: JSON.stringify({ filename: file.name, data, hint: file.name }),
+  });
+}
+
+async function uploadReceiptForEditingTransaction(file) {
+  if (!file || !editingTransactionId) return;
+  const status = $("#transaction-receipt-status");
+  status.textContent = "正在上传并关联到这笔账务…";
+  try {
+    const result = await uploadReceipt(file);
+    await api(`/api/receipts/${encodeURIComponent(result.receipt.id)}/link`, {
+      method: "POST",
+      body: JSON.stringify({ transactionId: editingTransactionId, replaceExisting: true }),
+    });
+    await loadState();
+    const tx = appState.data.transactions.find((item) => item.id === editingTransactionId);
+    if (tx) renderTransactionReceiptEditor(tx);
+    status.textContent = "凭证已保存并关联到当前账务。";
+    notify("凭证已添加到这笔账务");
+  } catch (error) {
+    status.textContent = `上传失败：${error.message}`;
+  } finally {
+    $("#transaction-receipt-file").value = "";
+  }
 }
 
 function updateTransactionCategoryInputs(selectedCategory = "", selectedSubcategory = "") {
@@ -608,12 +659,6 @@ async function deleteTransaction(transactionId) {
   } catch (error) { notify(`删除失败：${error.message}`); }
 }
 
-function renderReceipts() {
-  const receipts = appState.data.receipts || [];
-  $("#receipt-list").innerHTML = receipts.length ? receipts.map((receipt) => `<div class="receipt-row"><div class="receipt-thumb">${receipt.fileUrl ? `<img data-protected-receipt="${escapeHtml(receipt.id)}" alt="${escapeHtml(receipt.filename)}" />` : "▤"}</div><div><strong>${escapeHtml(receipt.merchant)}</strong><small>${currency(receipt.amount)} · ${escapeHtml(receipt.category)} · ${dateLabel(receipt.date)}</small></div><div class="receipt-actions">${receipt.fileUrl ? `<button class="view-receipt" data-view-receipt-id="${escapeHtml(receipt.id)}">查看照片</button>` : ""}<button class="edit-receipt" data-edit-receipt-id="${escapeHtml(receipt.id)}">编辑识别</button>${receipt.transactionId ? `<button disabled>已记账</button>` : `<button class="apply-receipt" data-receipt-id="${escapeHtml(receipt.id)}">记入账本</button>`}</div></div>`).join("") : `<div class="empty-state">上传第一张凭证，开始建立你的财务档案。</div>`;
-  hydrateProtectedReceiptImages($("#receipt-list"));
-}
-
 async function hydrateProtectedReceiptImages(root = document) {
   const images = [...root.querySelectorAll("[data-protected-receipt]")];
   await Promise.all(images.map(async (image) => {
@@ -632,26 +677,6 @@ async function hydrateProtectedReceiptImages(root = document) {
       image.replaceWith(document.createTextNode("▤"));
     }
   }));
-}
-
-async function editReceipt(receiptId) {
-  const receipt = appState.data.receipts.find((item) => item.id === receiptId);
-  if (!receipt) return;
-  const merchant = window.prompt("商户", receipt.merchant);
-  if (merchant === null) return;
-  const amount = window.prompt("金额（元）", String(receipt.amount));
-  if (amount === null) return;
-  const category = window.prompt("分类", receipt.category);
-  if (category === null) return;
-  const date = window.prompt("日期（YYYY-MM-DD）", receipt.date);
-  if (date === null) return;
-  const parsedAmount = Number(amount);
-  if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) { notify("请输入有效金额"); return; }
-  try {
-    await api(`/api/receipts/${encodeURIComponent(receiptId)}`, { method: "PATCH", body: JSON.stringify({ merchant, amount: parsedAmount, category, date }) });
-    await loadState();
-    notify("识别结果已更新");
-  } catch (error) { notify(`更新失败：${error.message}`); }
 }
 
 function addMessage(text, role = "ai") {
@@ -715,7 +740,7 @@ async function handleChat(event) {
   appState.importPreview = null;
   $("#import-preview").classList.add("hidden");
   $("#bill-file").value = "";
-  $("#bill-upload-status").textContent = "支持 Excel（.xlsx）与 CSV，AI 解析后会在右侧等待确认。";
+  $("#bill-upload-status").textContent = "支持 Excel、CSV 与图片凭证，AI 整理后会在右侧等待确认。";
   addMessage(value, "user");
   try {
     if (/为什么|花这么多|支出/.test(value)) {
@@ -737,37 +762,109 @@ function dataUrlToPayload(dataUrl) {
   return base64 || "";
 }
 
-function processReceiptFile(file) {
-  if (!file) return;
-  if (file.size > 8 * 1024 * 1024) { notify("图片不能超过 8MB"); return; }
-  const progress = $("#upload-progress");
-  const progressBar = $("#upload-progress-bar");
-  progress.classList.remove("hidden", "error");
-  progressBar.style.width = "18%";
-  $("#upload-status").textContent = "正在上传并提取商户、金额和分类…";
-  const reader = new FileReader();
-  reader.onprogress = (progressEvent) => { if (progressEvent.lengthComputable) progressBar.style.width = `${Math.max(18, Math.round(progressEvent.loaded / progressEvent.total * 70))}%`; };
-  reader.onload = async () => {
-    try {
-      progressBar.style.width = "72%";
-      await api("/api/receipts", { method: "POST", body: JSON.stringify({ filename: file.name, contentType: file.type, data: dataUrlToPayload(reader.result), hint: file.name }) });
-      await loadState();
-      progressBar.style.width = "100%";
-      $("#upload-status").textContent = "识别完成，可确认后记入账本。";
-      notify("凭证已保存");
-    } catch (error) { progress.classList.add("error"); progressBar.style.width = "100%"; $("#upload-status").textContent = `上传失败：${error.message}`; }
+function renderReceiptMatchPreview(result) {
+  const preview = $("#receipt-match-preview");
+  const receipt = result.receipt;
+  const candidates = result.candidates || [];
+  appState.pendingReceipt = { receipt, candidates };
+  $("#parse-preview").classList.add("hidden");
+  $("#import-preview").classList.add("hidden");
+  const defaultTarget = candidates[0]?.matchScore >= 70 ? candidates[0].id : "new";
+  preview.innerHTML = `
+    <p class="eyebrow">凭证识别</p><h3>确认凭证与账务</h3>
+    <div class="receipt-recognition-grid">
+      <label><span>商户 / 备注</span><input id="receipt-match-merchant" value="${escapeHtml(receipt.merchant)}" /></label>
+      <label><span>金额</span><input id="receipt-match-amount" type="number" min="0.01" step="0.01" value="${escapeHtml(receipt.amount)}" /></label>
+      <label><span>日期</span><input id="receipt-match-date" type="date" value="${escapeHtml(receipt.date)}" /></label>
+      <label><span>分类</span><input id="receipt-match-category" value="${escapeHtml(receipt.category)}" /></label>
+    </div>
+    <label class="receipt-target-field"><span>处理方式</span><select id="receipt-match-target">
+      <option value="new">新建一笔账务</option>
+      ${candidates.map((tx) => `<option value="${escapeHtml(tx.id)}" ${tx.id === defaultTarget ? "selected" : ""}>匹配：${escapeHtml(tx.note)} · ${currency(tx.amount)} · ${escapeHtml(tx.ledgerName)}${tx.hasReceipt ? " · 已有凭证" : ""}</option>`).join("")}
+    </select></label>
+    <label id="receipt-update-row" class="receipt-update-row"><input id="receipt-update-transaction" type="checkbox" /> 用上方识别结果更新所选账务</label>
+    <label id="receipt-ledger-row" class="receipt-target-field"><span>写入账本</span><select id="receipt-ledger-select">${appState.data.ledgers.map((ledger) => `<option value="${escapeHtml(ledger.id)}">${escapeHtml(ledger.name)}</option>`).join("")}</select></label>
+    <p id="receipt-match-hint" class="modal-helper"></p>
+    <div class="preview-actions"><button class="cancel-button" id="cancel-receipt-match" type="button">取消</button><button class="confirm-button" id="confirm-receipt-match" type="button">确认处理</button></div>`;
+  const target = $("#receipt-match-target");
+  const syncMode = () => {
+    const isNew = target.value === "new";
+    $("#receipt-ledger-row").classList.toggle("hidden", !isNew);
+    $("#receipt-update-row").classList.toggle("hidden", isNew);
+    const candidate = candidates.find((item) => item.id === target.value);
+    $("#receipt-match-hint").textContent = isNew
+      ? "确认后将按识别结果新建交易并保存原图。"
+      : `${candidate?.matchReasons?.join("、") || "手动选择"}${candidate?.hasReceipt ? "；确认后会替换该账务原有凭证。" : "；确认后会将原图关联到该账务。"}`;
   };
-  reader.onerror = () => { progress.classList.add("error"); progressBar.style.width = "100%"; $("#upload-status").textContent = "上传失败：无法读取图片"; };
-  reader.readAsDataURL(file);
+  $("#receipt-ledger-select").value = appState.selectedLedgerId || appState.data.ledgers[0]?.id || "";
+  target.value = String(defaultTarget);
+  target.addEventListener("change", syncMode);
+  syncMode();
+  $("#cancel-receipt-match").addEventListener("click", () => { preview.classList.add("hidden"); appState.pendingReceipt = null; });
+  $("#confirm-receipt-match").addEventListener("click", confirmReceiptMatch);
+  preview.classList.remove("hidden");
 }
 
-function handleReceipt(event) {
-  processReceiptFile(event.target.files?.[0]);
+async function confirmReceiptMatch() {
+  if (!appState.pendingReceipt) return;
+  const button = $("#confirm-receipt-match");
+  const receiptId = appState.pendingReceipt.receipt.id;
+  const targetId = $("#receipt-match-target").value;
+  button.disabled = true;
+  button.textContent = "正在处理…";
+  try {
+    await api(`/api/receipts/${encodeURIComponent(receiptId)}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        merchant: $("#receipt-match-merchant").value.trim(),
+        amount: $("#receipt-match-amount").value,
+        date: $("#receipt-match-date").value,
+        category: $("#receipt-match-category").value.trim(),
+      }),
+    });
+    if (targetId === "new") {
+      const ledger = appState.data.ledgers.find((item) => item.id === $("#receipt-ledger-select").value);
+      await api("/api/receipts/apply", { method: "POST", body: JSON.stringify({ receiptId, ledgerName: ledger?.name }) });
+      addMessage("凭证已生成一笔新账务，并保留原始图片。");
+    } else {
+      await api(`/api/receipts/${encodeURIComponent(receiptId)}/link`, {
+        method: "POST",
+        body: JSON.stringify({ transactionId: targetId, replaceExisting: true, updateTransaction: $("#receipt-update-transaction").checked }),
+      });
+      addMessage($("#receipt-update-transaction").checked ? "凭证已匹配，并按识别结果更新了账务。" : "凭证已匹配到现有账务，账务字段保持不变。");
+    }
+    $("#receipt-match-preview").classList.add("hidden");
+    appState.pendingReceipt = null;
+    await loadState();
+    notify("凭证处理完成");
+  } catch (error) {
+    $("#receipt-match-hint").textContent = `处理失败：${error.message}`;
+    button.disabled = false;
+    button.textContent = "确认处理";
+  }
 }
 
-async function applyReceipt(receiptId) {
-  try { await api("/api/receipts/apply", { method: "POST", body: JSON.stringify({ receiptId, ledgerName: selectedLedger()?.name }) }); await loadState(); notify("凭证已关联到交易"); }
-  catch (error) { notify(`关联失败：${error.message}`); }
+async function processChatReceiptFile(file) {
+  if (!file) return;
+  $("#bill-upload-status").textContent = "正在识别凭证并匹配已有账务…";
+  addMessage(`上传凭证：${file.name}`, "user");
+  try {
+    const result = await uploadReceipt(file);
+    renderReceiptMatchPreview(result);
+    $("#bill-upload-status").textContent = `已找到 ${result.candidates.length} 笔候选账务，请在右侧确认。`;
+    addMessage("凭证已整理完成。你可以新建账务，也可以匹配现有记录并选择是否更新字段。");
+  } catch (error) {
+    $("#bill-upload-status").textContent = `凭证上传失败：${error.message}`;
+    notify(`凭证上传失败：${error.message}`);
+  } finally {
+    $("#bill-file").value = "";
+  }
+}
+
+function processChatFile(file) {
+  if (!file) return;
+  if (/^image\//i.test(file.type) || /\.(png|jpe?g|webp)$/i.test(file.name)) processChatReceiptFile(file);
+  else processBillFile(file);
 }
 
 function openLedgerModal() {
@@ -800,7 +897,6 @@ async function createLedgerFromModal(event) {
     renderDashboard();
     renderChatDashboard();
     renderLedger();
-    renderReceipts();
     notify(`已创建并切换到 ${result.ledger.name}`);
   } catch (error) {
     $("#ledger-form-error").textContent = error.message;
@@ -896,7 +992,6 @@ async function removeLedger(ledgerId) {
     renderDashboard();
     renderChatDashboard();
     renderLedger();
-    renderReceipts();
     renderLedgerManager();
     notify(`账本“${ledger.name}”已删除`);
   } catch (error) {
@@ -1050,7 +1145,6 @@ async function commitBillImport() {
     renderDashboard();
     renderChatDashboard();
     renderLedger();
-    renderReceipts();
     addMessage(`账单已处理：新增 ${result.importedCount} 笔，按选择更新 ${result.updatedCount} 笔。`);
     notify(`账单已处理：新增 ${result.importedCount} 笔，更新 ${result.updatedCount} 笔`);
   } catch (error) {
@@ -1063,7 +1157,7 @@ async function commitBillImport() {
 
 async function loadState() {
   appState.data = await api("/api/state");
-  renderLedgerSelector(); renderDashboard(); renderChatDashboard(); renderLedger(); renderReceipts();
+  renderLedgerSelector(); renderDashboard(); renderChatDashboard(); renderLedger();
 }
 
 function wireEvents() {
@@ -1124,7 +1218,7 @@ function wireEvents() {
     button: $("#voice-button"),
     notify,
   });
-  $("#bill-file").addEventListener("change", (event) => processBillFile(event.target.files?.[0]));
+  $("#bill-file").addEventListener("change", (event) => processChatFile(event.target.files?.[0]));
   $("#import-select-all").addEventListener("change", (event) => {
     $$("#import-table-body input[data-import-index]:not(:disabled)").forEach((input) => { input.checked = event.target.checked; });
     renderImportSelectionSummary();
@@ -1148,15 +1242,14 @@ function wireEvents() {
     if (receipt) viewTransactionReceipt(receipt.dataset.viewReceiptId);
     if (detail) openTransactionDetails(detail.dataset.detailId);
   });
-  $("#receipt-file").addEventListener("change", handleReceipt);
-  const dropzone = $("#receipt-dropzone");
-  ["dragenter", "dragover"].forEach((eventName) => dropzone.addEventListener(eventName, (event) => { event.preventDefault(); dropzone.classList.add("drop-active"); }));
-  ["dragleave", "drop"].forEach((eventName) => dropzone.addEventListener(eventName, (event) => { event.preventDefault(); dropzone.classList.remove("drop-active"); }));
-  dropzone.addEventListener("drop", (event) => processReceiptFile(event.dataTransfer.files?.[0]));
-  $("#receipt-list").addEventListener("click", (event) => { const apply = event.target.closest("[data-receipt-id]"); const edit = event.target.closest("[data-edit-receipt-id]"); const view = event.target.closest("[data-view-receipt-id]"); if (apply) applyReceipt(apply.dataset.receiptId); if (edit) editReceipt(edit.dataset.editReceiptId); if (view) viewTransactionReceipt(view.dataset.viewReceiptId); });
   $("#close-transaction-modal").addEventListener("click", closeTransactionDetails);
   $("#transaction-modal").addEventListener("click", (event) => { if (event.target.matches("[data-close-modal]")) closeTransactionDetails(); });
   $("#transaction-edit-form").addEventListener("submit", saveTransactionEdits);
+  $("#transaction-receipt-file").addEventListener("change", (event) => uploadReceiptForEditingTransaction(event.target.files?.[0]));
+  $("#transaction-receipt-actions").addEventListener("click", (event) => {
+    const view = event.target.closest("[data-edit-view-receipt]");
+    if (view) viewTransactionReceipt(view.dataset.editViewReceipt);
+  });
   $("#transaction-edit-type").addEventListener("change", () => updateTransactionCategoryInputs());
   $("#transaction-edit-category").addEventListener("change", (event) => updateTransactionCategoryInputs(event.target.value));
   $("#close-transaction-edit-modal").addEventListener("click", closeTransactionEditor);

@@ -66,7 +66,6 @@
           <button class="nav-item active" data-view="dashboard"><span class="nav-dot cyan"></span>总览</button>
           <button class="nav-item" data-view="chat"><span class="nav-dot violet"></span>AI 记账</button>
           <button class="nav-item" data-view="ledger"><span class="nav-dot green"></span>账本</button>
-          <button class="nav-item" data-view="receipts"><span class="nav-dot amber"></span>凭证</button>
         </nav>
         <div class="sidebar-footer">
           <div class="privacy-badge"><span class="status-dot"></span><span id="current-user-name">已安全登录</span></div>
@@ -154,15 +153,16 @@
               <div id="chat-messages" class="chat-messages"></div>
               <div class="quick-prompts"><button data-prompt="刚刚停车112元，帮我记一下。">停车 112 元</button><button data-prompt="创建2026账本，把停车费112元记录进去，再把4月份销冠奖金500元放进去。">创建账本 + 两笔交易</button><button data-prompt="为什么这个月花这么多？">分析本月支出</button></div>
               <form id="chat-form" class="chat-composer">
-                <label class="composer-file-button" for="bill-file" aria-label="上传 Excel 或 CSV 账单" title="上传 Excel 或 CSV 账单">＋<input id="bill-file" type="file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" hidden /></label>
+                <label class="composer-file-button" for="bill-file" aria-label="上传账单或图片凭证" title="上传账单或图片凭证">＋<input id="bill-file" type="file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,image/png,image/jpeg,image/webp" hidden /></label>
                 <textarea id="chat-input" rows="2" placeholder="说一句财务指令，或上传一份账单…"></textarea>
                 <button class="voice-button" id="voice-button" type="button" aria-label="语音输入" title="语音输入">◉</button>
                 <button class="send-button" type="submit" aria-label="发送">↑</button>
               </form>
-              <p id="bill-upload-status" class="composer-hint">支持 Excel（.xlsx）与 CSV，AI 解析后会在右侧等待确认。</p>
+              <p id="bill-upload-status" class="composer-hint">支持 Excel、CSV 与图片凭证，AI 整理后会在右侧等待确认。</p>
             </article>
             <aside class="chat-aside">
               <div id="parse-preview" class="aside-card preview-card hidden"></div>
+              <div id="receipt-match-preview" class="aside-card receipt-match-card hidden"></div>
               <div id="import-preview" class="aside-card import-confirm-card hidden">
                 <div class="import-confirm-heading">
                   <div><h3>账单确认</h3><p id="import-preview-title" class="import-file-name">等待解析</p></div>
@@ -184,7 +184,7 @@
                 </div>
               </div>
               <div id="chat-dashboard-summary" class="aside-card"></div>
-              <div class="aside-card"><h3>记账流程</h3><div class="flow-stack"><span>自然语言 / 账单文件</span><i>↓</i><span>AI 自动整理</span><i>↓</i><span>选择账本并确认</span></div></div>
+              <div class="aside-card"><h3>记账流程</h3><div class="flow-stack"><span>自然语言 / 账单 / 凭证</span><i>↓</i><span>AI 自动整理与匹配</span><i>↓</i><span>选择账本并确认</span></div></div>
             </aside>
           </div>
         </section>
@@ -202,10 +202,6 @@
           <div class="surface ledger-table-wrap"><table class="ledger-table"><thead><tr><th>交易</th><th>账本</th><th>分类</th><th>日期</th><th>来源</th><th class="align-right">金额</th><th class="align-right">操作</th></tr></thead><tbody id="ledger-table-body"></tbody></table><div id="ledger-empty" class="empty-state hidden">还没有匹配的交易。</div></div>
         </section>
 
-        <section id="receipts-view" class="view">
-          <div class="view-heading"><div><h2>凭证</h2><p class="subcopy">上传小票、发票或支付截图，保留原始记录。</p></div></div>
-          <div class="receipts-layout"><article id="receipt-dropzone" class="surface upload-card"><div class="upload-icon">↑</div><h3>上传凭证</h3><p>支持 PNG、JPG、WEBP，单张不超过 8MB。</p><label class="upload-button" for="receipt-file">选择图片<input id="receipt-file" type="file" accept="image/*" hidden /></label><div id="upload-progress" class="upload-progress hidden" aria-label="上传进度"><span id="upload-progress-bar"></span></div><div id="upload-status" class="upload-status">图片会保存到当前容器的数据卷中。</div></article><article class="surface receipt-results"><div class="surface-heading"><h3>凭证记录</h3><span class="muted-label">可追溯</span></div><div id="receipt-list" class="receipt-list"></div></article></div>
-        </section>
       </main>
     </div>
     <div id="transaction-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="transaction-detail-title">
@@ -231,6 +227,12 @@
           <label class="modal-field transaction-edit-wide"><span>标签</span><input id="transaction-edit-tags" maxlength="200" placeholder="多个标签用逗号分隔，例如：工作，可报销" /></label>
           <label class="modal-field transaction-edit-wide"><span>所属账本</span><select id="transaction-edit-ledger" required></select></label>
         </div>
+        <section id="transaction-receipt-editor" class="transaction-receipt-editor">
+          <div><strong>交易凭证</strong><p id="transaction-receipt-copy">可添加小票、发票或支付截图。</p></div>
+          <div id="transaction-receipt-actions" class="transaction-receipt-actions"></div>
+          <label class="secondary-button transaction-receipt-upload" for="transaction-receipt-file"><span id="transaction-receipt-upload-label">添加凭证</span><input id="transaction-receipt-file" type="file" accept="image/png,image/jpeg,image/webp" hidden /></label>
+          <small id="transaction-receipt-status"></small>
+        </section>
         <p id="transaction-edit-source" class="modal-helper transaction-edit-source"></p>
         <p id="transaction-edit-error" class="login-error" role="alert"></p>
         <button class="primary-button modal-submit" type="submit">保存全部修改</button>

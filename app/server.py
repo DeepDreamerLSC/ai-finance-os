@@ -27,8 +27,10 @@ from app.finance import (
     delete_ledger,
     delete_transaction,
     insights_answer,
+    link_receipt,
     parse_command,
     receipt_file,
+    receipt_match_candidates,
     update_receipt,
     update_ledger,
     update_transaction,
@@ -70,6 +72,12 @@ class ReceiptCreateRequest(BaseModel):
 class ReceiptApplyRequest(BaseModel):
     receiptId: str
     ledgerName: str | None = None
+
+
+class ReceiptLinkRequest(BaseModel):
+    transactionId: str
+    replaceExisting: bool = False
+    updateTransaction: bool = False
 
 
 class LedgerCreateRequest(BaseModel):
@@ -266,7 +274,7 @@ def receipt_create(
         row = create_receipt(db, auth.user.id, body.model_dump())
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"receipt": row}
+    return {"receipt": row, "candidates": receipt_match_candidates(db, auth.user.id, row["id"])}
 
 
 @app.patch("/api/receipts/{receipt_id}")
@@ -282,7 +290,30 @@ def receipt_update(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not row:
         raise HTTPException(status_code=404, detail="凭证不存在")
-    return {"receipt": row}
+    return {"receipt": row, "candidates": receipt_match_candidates(db, auth.user.id, row["id"])}
+
+
+@app.post("/api/receipts/{receipt_id}/link")
+def receipt_link(
+    receipt_id: str,
+    body: ReceiptLinkRequest,
+    auth: AuthContext = Depends(get_current_auth),
+    db: Session = Depends(get_db),
+) -> dict:
+    try:
+        result = link_receipt(
+            db,
+            auth.user.id,
+            receipt_id,
+            body.transactionId,
+            replace_existing=body.replaceExisting,
+            update_transaction_fields=body.updateTransaction,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if not result:
+        raise HTTPException(status_code=404, detail="凭证或账务不存在")
+    return result
 
 
 @app.post("/api/receipts/apply")
